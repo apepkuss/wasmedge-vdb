@@ -6,3 +6,6 @@ version = "0.1.0"
 [dependencies]
 milvus-sdk-rust = {git = "https://github.com/apepkuss/milvus-sdk-rust.git", branch = "fix-wrong-dtype"}
 thiserror = "1.0.30"
+
+[dev-dependencies]
+tokio = {version = "1", features = ["rt", "macros"]}

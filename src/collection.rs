@@ -184,7 +184,7 @@ mod tests {
 
     #[test]
     fn test_field_schema() {
-        let field = FieldSchema::new("name", "desc", FieldType::Int64(true, true));
+        let field = FieldSchema::new("test", "This is a test", FieldType::Int64(true, true));
         println!("{:?}", field);
     }
 }
