@@ -13,9 +13,13 @@ impl Client {
         port: u16,
         username: Option<String>,
         password: Option<String>,
-        timeout: std::time::Duration,
+        timeout: Option<std::time::Duration>,
     ) -> VDBResult<Self> {
         let url = format!("{}:{}", host, port.to_string());
+        let timeout = match timeout {
+            Some(timeout) => timeout,
+            None => std::time::Duration::from_secs(10),
+        };
 
         match milvus::client::Client::with_timeout(url, timeout, username, password).await {
             Ok(inner) => Ok(Self { inner }),
@@ -65,7 +69,7 @@ mod tests {
             19530,
             None,
             None,
-            std::time::Duration::from_secs(10),
+            Some(std::time::Duration::from_secs(10)),
         )
         .await;
         assert!(result.is_ok());
