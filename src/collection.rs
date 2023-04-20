@@ -1,36 +1,50 @@
 use crate::error::VDBResult;
 use std::fmt;
 
-#[derive(Debug)]
 pub struct Collection {
     pub(crate) inner: milvus::collection::Collection,
+    pub(crate) schema: CollectionSchema,
+}
+impl Collection {
+    pub fn name(&self) -> &str {
+        self.inner.name()
+    }
+
+    pub fn schema(&self) -> &CollectionSchema {
+        &self.schema
+    }
+
+    // pub async fn get_load_percent(&self) -> VDBResult<i64> {
+    //     unimplemented!()
+    // }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CollectionSchema {
     inner: milvus::schema::CollectionSchema,
 }
 impl CollectionSchema {
     pub fn new(
         name: impl AsRef<str>,
-        description: Option<&str>,
         fields: Vec<FieldSchema>,
+        description: Option<&str>,
     ) -> VDBResult<Self> {
         let mut builder = milvus::schema::CollectionSchemaBuilder::new(
             name.as_ref(),
             description.unwrap_or_default(),
         );
-
-        if !fields.is_empty() {
-            for field in fields {
-                builder.add_field(field.into());
-            }
+        for field in fields {
+            builder = builder.add_field(field.into());
         }
 
-        match builder.build() {
-            Ok(inner) => Ok(Self { inner }),
-            Err(e) => Err(Box::new(e.into())),
-        }
+        let inner = builder.build().map_err(|e| Box::new(e.into()))?;
+
+        Ok(Self { inner })
+    }
+}
+impl From<milvus::schema::CollectionSchema> for CollectionSchema {
+    fn from(schema: milvus::schema::CollectionSchema) -> Self {
+        Self { inner: schema }
     }
 }
 impl From<CollectionSchema> for milvus::schema::CollectionSchema {
@@ -39,17 +53,22 @@ impl From<CollectionSchema> for milvus::schema::CollectionSchema {
     }
 }
 
+#[derive(Clone)]
 pub struct FieldSchema {
-    // inner: milvus::schema::FieldSchema,
     name: String,
     desc: String,
     ty: FieldType,
 }
 impl FieldSchema {
-    pub fn new(name: &str, description: &str, ty: FieldType) -> Self {
+    pub fn new(name: &str, ty: FieldType, description: Option<&str>) -> Self {
+        let desc = match description {
+            Some(desc) => desc.to_string(),
+            None => String::new(),
+        };
+
         Self {
             name: name.to_string(),
-            desc: description.to_string(),
+            desc,
             ty,
         }
     }
@@ -68,7 +87,7 @@ impl fmt::Debug for FieldSchema {
             FieldType::Float => format!("dtype: Float"),
             FieldType::Double => format!("dtype: Double"),
             FieldType::String => format!("dtype: String"),
-            FieldType::Varchar(max_length, pk, auto_id) => {
+            FieldType::VarChar(max_length, pk, auto_id) => {
                 format!("dtype: Varchar, max_length: {max_length}, is_primary: {pk}, auto_id: {auto_id}")
             }
             FieldType::BinaryVector(dim) => format!("dtype: BinaryVector, dimension: {dim}"),
@@ -101,8 +120,8 @@ impl From<milvus::schema::FieldSchema> for FieldSchema {
             milvus::proto::schema::DataType::Double => FieldType::Double,
             milvus::proto::schema::DataType::String => FieldType::String,
             milvus::proto::schema::DataType::VarChar => match field.is_primary {
-                true => FieldType::Varchar(field.max_length, true, field.auto_id),
-                false => FieldType::Varchar(field.max_length, false, field.auto_id),
+                true => FieldType::VarChar(field.max_length, true, field.auto_id),
+                false => FieldType::VarChar(field.max_length, false, field.auto_id),
             },
             milvus::proto::schema::DataType::BinaryVector => FieldType::BinaryVector(field.dim),
             milvus::proto::schema::DataType::FloatVector => FieldType::FloatVector(field.dim),
@@ -134,7 +153,7 @@ impl From<FieldSchema> for milvus::schema::FieldSchema {
             FieldType::Float => milvus::schema::FieldSchema::new_float(&field.name, &field.desc),
             FieldType::Double => milvus::schema::FieldSchema::new_double(&field.name, &field.desc),
             FieldType::String => milvus::schema::FieldSchema::new_string(&field.name, &field.desc),
-            FieldType::Varchar(max_length, pk, auto_id) => match pk {
+            FieldType::VarChar(max_length, pk, auto_id) => match pk {
                 true => milvus::schema::FieldSchema::new_primary_varchar(
                     &field.name,
                     &field.desc,
@@ -155,7 +174,7 @@ impl From<FieldSchema> for milvus::schema::FieldSchema {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum FieldType {
     None,
     Bool,
@@ -168,7 +187,7 @@ pub enum FieldType {
     Double,
     String,
     /// `AutoId` is only valid when `PrimaryKey` is true.
-    Varchar(MaxLength, PrimaryKey, AutoId),
+    VarChar(MaxLength, PrimaryKey, AutoId),
     BinaryVector(Dimension),
     FloatVector(Dimension),
 }
@@ -184,7 +203,7 @@ mod tests {
 
     #[test]
     fn test_field_schema() {
-        let field = FieldSchema::new("test", "This is a test", FieldType::Int64(true, true));
+        let field = FieldSchema::new("test", FieldType::Int64(true, true), Some("This is a test"));
         println!("{:?}", field);
     }
 }

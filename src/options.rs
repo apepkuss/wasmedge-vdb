@@ -1,6 +1,32 @@
+#[derive(Debug)]
 pub struct CreateCollectionOptions {
     shard_num: i32,
     consistency_level: ConsistencyLevel,
+}
+impl Default for CreateCollectionOptions {
+    fn default() -> Self {
+        Self {
+            shard_num: 2,
+            consistency_level: ConsistencyLevel::default(),
+        }
+    }
+}
+impl CreateCollectionOptions {
+    pub fn new(shard_num: i32, level: ConsistencyLevel) -> Self {
+        let mut options = Self::default();
+        options.shard_num = shard_num;
+        options.consistency_level = level;
+
+        options
+    }
+
+    pub fn shard_num(&self) -> i32 {
+        self.shard_num
+    }
+
+    pub fn consistency_level(&self) -> &ConsistencyLevel {
+        &self.consistency_level
+    }
 }
 impl From<CreateCollectionOptions> for milvus::options::CreateCollectionOptions {
     fn from(options: CreateCollectionOptions) -> Self {
@@ -17,6 +43,11 @@ pub enum ConsistencyLevel {
     Bounded,
     Eventually,
     Customized,
+}
+impl Default for ConsistencyLevel {
+    fn default() -> Self {
+        ConsistencyLevel::Session
+    }
 }
 impl From<ConsistencyLevel> for milvus::proto::common::ConsistencyLevel {
     fn from(level: ConsistencyLevel) -> Self {
