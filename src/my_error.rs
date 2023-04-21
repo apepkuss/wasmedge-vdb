@@ -30,6 +30,7 @@ pub enum Error {
 
     #[error("Conversion error")]
     Conversion,
+
     #[error("{0:?}")]
     SerdeJsonErr(#[from] serde_json::Error),
 

@@ -1,4 +1,5 @@
 use crate::{common::ConsistencyLevel, schema::CollectionSchema};
+use num_traits::FromPrimitive;
 
 #[derive(Debug, Clone)]
 pub struct CollectionMetadata {
@@ -402,4 +403,166 @@ pub struct QuerySegmentInfo {
     pub node_id: i64,
     pub state: SegmentState,
     pub node_ids: Vec<i64>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ReplicaInfo {
+    pub replica_id: i64,
+    pub collection_id: i64,
+    /// empty indicates to load collection
+    pub partition_ids: Vec<i64>,
+    pub shard_replicas: Vec<ShardReplica>,
+    /// include leaders
+    pub node_ids: Vec<i64>,
+}
+impl From<milvus::proto::milvus::ReplicaInfo> for ReplicaInfo {
+    fn from(replica_info: milvus::proto::milvus::ReplicaInfo) -> Self {
+        ReplicaInfo {
+            replica_id: replica_info.replica_id,
+            collection_id: replica_info.collection_id,
+            partition_ids: replica_info.partition_ids,
+            shard_replicas: replica_info
+                .shard_replicas
+                .into_iter()
+                .map(|shard_replica| shard_replica.into())
+                .collect(),
+            node_ids: replica_info.node_ids,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ShardReplica {
+    pub leader_id: i64,
+    /// IP:port
+    pub leader_addr: String,
+    pub dm_channel_name: String,
+    /// optional, DO NOT save it in meta, set it only for GetReplicas()
+    /// if with_shard_nodes is true
+    pub node_ids: Vec<i64>,
+}
+impl From<milvus::proto::milvus::ShardReplica> for ShardReplica {
+    fn from(shard_replica: milvus::proto::milvus::ShardReplica) -> Self {
+        ShardReplica {
+            leader_id: shard_replica.leader_id,
+            leader_addr: shard_replica.leader_addr,
+            dm_channel_name: shard_replica.dm_channel_name,
+            node_ids: shard_replica.node_ids,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Address {
+    pub ip: String,
+    pub port: i64,
+}
+impl From<milvus::proto::common::Address> for Address {
+    fn from(address: milvus::proto::common::Address) -> Self {
+        Address {
+            ip: address.ip,
+            port: address.port,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Metrics {
+    /// response is of jsonic format
+    pub response: String,
+    /// metrics from which component
+    pub component_name: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct ComponentState {
+    pub state: Option<ComponentInfo>,
+    pub subcomponent_states: Vec<ComponentInfo>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ComponentInfo {
+    pub node_id: i64,
+    pub role: ::prost::alloc::string::String,
+    pub state_code: StateCode,
+    pub extra_info: std::collections::HashMap<String, String>,
+}
+impl From<milvus::proto::milvus::ComponentInfo> for ComponentInfo {
+    fn from(component_info: milvus::proto::milvus::ComponentInfo) -> Self {
+        ComponentInfo {
+            node_id: component_info.node_id,
+            role: component_info.role,
+            state_code: StateCode::from_i32(component_info.state_code).unwrap(),
+            extra_info: component_info
+                .extra_info
+                .into_iter()
+                .map(|kv| (kv.key, kv.value))
+                .collect(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, FromPrimitive, ToPrimitive)]
+#[repr(i32)]
+pub enum StateCode {
+    Initializing = 0,
+    Healthy = 1,
+    Abnormal = 2,
+    StandBy = 3,
+}
+
+#[derive(Debug, Clone)]
+pub struct CompactionStateResult {
+    pub state: CompactionState,
+    pub executing_plan_no: i64,
+    pub timeout_plan_no: i64,
+    pub completed_plan_no: i64,
+    pub failed_plan_no: i64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, FromPrimitive, ToPrimitive)]
+pub enum CompactionState {
+    UndefiedState = 0,
+    Executing = 1,
+    Completed = 2,
+}
+
+#[derive(Debug, Clone)]
+pub struct CompactionPlan {
+    pub state: CompactionState,
+    pub merge_infos: Vec<CompactionMergeInfo>,
+}
+
+#[derive(Debug, Clone)]
+pub struct CompactionMergeInfo {
+    pub sources: Vec<i64>,
+    pub target: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct ImportStateResult {
+    pub state: ImportState,
+    pub row_count: i64,
+    pub id_list: Vec<i64>,
+    pub infos: std::collections::HashMap<String, String>,
+    pub id: i64,
+    pub collection_id: i64,
+    pub segment_ids: Vec<i64>,
+    pub create_ts: i64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, FromPrimitive, ToPrimitive)]
+pub enum ImportState {
+    /// the task in in pending list of rootCoord, waiting to be executed
+    ImportPending = 0,
+    /// the task failed for some reason, get detail reason from GetImportStateResponse.infos
+    ImportFailed = 1,
+    /// the task has been sent to datanode to execute
+    ImportStarted = 2,
+    /// all data files have been parsed and data already persisted
+    ImportPersisted = 5,
+    /// all indexes are successfully built and segments are able to be compacted as normal.
+    ImportCompleted = 6,
+    /// the task failed and all segments it generated are cleaned up.
+    ImportFailedAndCleaned = 7,
 }

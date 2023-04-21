@@ -9,11 +9,14 @@ use tonic::service::Interceptor;
 use tonic::transport::Channel;
 use tonic::Request;
 
+use crate::my_collection::ComponentState;
 use crate::{
     my_collection::{
-        CollectionInfo, CollectionMetadata, FieldData, FlushResult, IndexInfo, IndexProgress,
-        IndexState, MutationResult, PartitionInfo, PersistentSegmentInfo, QueryResult,
-        QuerySegmentInfo, SearchResult, SegmentState,
+        Address, CollectionInfo, CollectionMetadata, CompactionMergeInfo, CompactionPlan,
+        CompactionState, CompactionStateResult, FieldData, FlushResult, ImportState,
+        ImportStateResult, IndexInfo, IndexProgress, IndexState, Metrics, MutationResult,
+        PartitionInfo, PersistentSegmentInfo, QueryResult, QuerySegmentInfo, ReplicaInfo,
+        SearchResult, SegmentState,
     },
     my_error::{Error, Result},
     schema::CollectionSchema,
@@ -976,6 +979,253 @@ impl Client {
                 node_ids: x.node_ids,
             })
             .collect();
+
+        Ok(res)
+    }
+
+    pub async fn get_replicas(
+        &self,
+        collection_id: i64,
+        with_shard_nodes: bool,
+    ) -> Result<Vec<ReplicaInfo>> {
+        let request = milvus::proto::milvus::GetReplicasRequest {
+            base: Some(new_msg(MsgType::GetReplicas)),
+            collection_id,
+            with_shard_nodes,
+        };
+
+        let response = self
+            .client
+            .clone()
+            .get_replicas(request)
+            .await?
+            .into_inner();
+
+        status_to_result(&response.status)?;
+
+        let res = response.replicas.into_iter().map(|x| x.into()).collect();
+
+        Ok(res)
+    }
+
+    pub async fn dummy(&self, request_type: &str) -> Result<String> {
+        let request = milvus::proto::milvus::DummyRequest {
+            request_type: request_type.to_string(),
+        };
+
+        let response = self.client.clone().dummy(request).await?.into_inner();
+
+        Ok(response.response)
+    }
+
+    pub async fn register_link(&self) -> Result<Address> {
+        let request = milvus::proto::milvus::RegisterLinkRequest {};
+
+        let response = self
+            .client
+            .clone()
+            .register_link(request)
+            .await?
+            .into_inner();
+
+        status_to_result(&response.status)?;
+
+        Ok(response.address.unwrap_or_default().into())
+    }
+
+    /// `request` is of jsonic format
+    pub async fn get_metrics(&self, request: String) -> Result<Metrics> {
+        let request = milvus::proto::milvus::GetMetricsRequest {
+            request,
+            ..Default::default()
+        };
+
+        let response = self.client.clone().get_metrics(request).await?.into_inner();
+
+        status_to_result(&response.status)?;
+
+        Ok(Metrics {
+            response: response.response,
+            component_name: response.component_name,
+        })
+    }
+
+    pub async fn get_component_states(&self) -> Result<ComponentState> {
+        let request = milvus::proto::milvus::GetComponentStatesRequest {};
+
+        let response = self
+            .client
+            .clone()
+            .get_component_states(request)
+            .await?
+            .into_inner();
+
+        status_to_result(&response.status)?;
+
+        let res = ComponentState {
+            state: response.state.map(|x| x.into()),
+            subcomponent_states: response
+                .subcomponent_states
+                .into_iter()
+                .map(|x| x.into())
+                .collect(),
+        };
+
+        Ok(res)
+    }
+
+    pub async fn load_balance(
+        &self,
+        collection_name: &str,
+        src_node_id: i64,
+        dst_node_ids: Vec<i64>,
+        sealed_segment_ids: Vec<i64>,
+    ) -> Result<()> {
+        let request = milvus::proto::milvus::LoadBalanceRequest {
+            base: Some(new_msg(MsgType::LoadBalanceSegments)),
+            collection_name: collection_name.to_string(),
+            src_node_id,
+            dst_node_i_ds: dst_node_ids,
+            sealed_segment_i_ds: sealed_segment_ids,
+        };
+
+        let response = self
+            .client
+            .clone()
+            .load_balance(request)
+            .await?
+            .into_inner();
+
+        status_to_result(&Some(response))?;
+
+        Ok(())
+    }
+
+    pub async fn get_compaction_state(&self, compaction_id: i64) -> Result<CompactionStateResult> {
+        let request = milvus::proto::milvus::GetCompactionStateRequest { compaction_id };
+
+        let response = self
+            .client
+            .clone()
+            .get_compaction_state(request)
+            .await?
+            .into_inner();
+
+        status_to_result(&response.status)?;
+
+        let res = CompactionStateResult {
+            state: CompactionState::from_i32(response.state).unwrap(),
+            executing_plan_no: response.executing_plan_no,
+            timeout_plan_no: response.timeout_plan_no,
+            completed_plan_no: response.completed_plan_no,
+            failed_plan_no: response.failed_plan_no,
+        };
+
+        Ok(res)
+    }
+
+    pub async fn manual_compaction(&self, collection_id: i64, time_travel: u64) -> Result<i64> {
+        let request = milvus::proto::milvus::ManualCompactionRequest {
+            collection_id,
+            timetravel: time_travel,
+        };
+
+        let response = self
+            .client
+            .clone()
+            .manual_compaction(request)
+            .await?
+            .into_inner();
+
+        status_to_result(&response.status)?;
+
+        Ok(response.compaction_id)
+    }
+
+    // pub async fn get_compaction_state_with_plans(
+    //     &self,
+    //     compaction_id: i64,
+    // ) -> Result<CompactionPlan> {
+    //     let request = milvus::proto::milvus::GetCompactionStateRequest { compaction_id };
+
+    //     let response = self
+    //         .client
+    //         .clone()
+    //         .get_compaction_state_with_plans(request)
+    //         .await?
+    //         .into_inner();
+
+    //     status_to_result(&response.status)?;
+
+    //     let res = CompactionPlan {
+    //         state: CompactionState::from_i32(response.state).unwrap(),
+    //         merge_infos: response
+    //             .merge_infos
+    //             .into_iter()
+    //             .map(|x| CompactionMergeInfo {
+    //                 sources: x.sources,
+    //                 target: x.target,
+    //             })
+    //             .collect(),
+    //     };
+
+    //     Ok(res)
+    // }
+
+    pub async fn import(
+        &self,
+        collection_name: &str,
+        partition_name: &str,
+        channel_names: Vec<&str>,
+        row_based: bool,
+        files: Vec<&str>,
+        options: HashMap<String, String>,
+    ) -> Result<Vec<i64>> {
+        let request = milvus::proto::milvus::ImportRequest {
+            collection_name: collection_name.to_string(),
+            partition_name: partition_name.to_string(),
+            channel_names: channel_names.iter().map(|x| x.to_string()).collect(),
+            row_based,
+            files: files.iter().map(|x| x.to_string()).collect(),
+            options: options
+                .into_iter()
+                .map(|(key, value)| KeyValuePair { key, value })
+                .collect(),
+        };
+
+        let response = self.client.clone().import(request).await?.into_inner();
+
+        status_to_result(&response.status)?;
+
+        Ok(response.tasks)
+    }
+
+    pub async fn get_import_state(&self, task: i64) -> Result<ImportStateResult> {
+        let request = milvus::proto::milvus::GetImportStateRequest { task };
+
+        let response = self
+            .client
+            .clone()
+            .get_import_state(request)
+            .await?
+            .into_inner();
+
+        status_to_result(&response.status)?;
+
+        let res = ImportStateResult {
+            state: ImportState::from_i32(response.state).unwrap(),
+            row_count: response.row_count,
+            id_list: response.id_list,
+            infos: response
+                .infos
+                .into_iter()
+                .map(|kv| (kv.key, kv.value))
+                .collect(),
+            id: response.id,
+            collection_id: response.collection_id,
+            segment_ids: response.segment_ids,
+            create_ts: response.create_ts,
+        };
 
         Ok(res)
     }
