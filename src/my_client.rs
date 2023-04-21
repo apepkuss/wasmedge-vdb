@@ -11,8 +11,9 @@ use tonic::Request;
 
 use crate::{
     my_collection::{
-        CollectionInfo, CollectionMetadata, FieldData, IndexInfo, IndexProgress, IndexState,
-        MutationResult, PartitionInfo, SearchResult,
+        CollectionInfo, CollectionMetadata, FieldData, FlushResult, IndexInfo, IndexProgress,
+        IndexState, MutationResult, PartitionInfo, PersistentSegmentInfo, QueryResult,
+        QuerySegmentInfo, SearchResult, SegmentState,
     },
     my_error::{Error, Result},
     schema::CollectionSchema,
@@ -808,6 +809,173 @@ impl Client {
             results: response.results.map(|x| x.into()),
             collection_name: response.collection_name,
         };
+
+        Ok(res)
+    }
+
+    pub async fn flush(&self, collection_names: Vec<&str>) -> Result<FlushResult> {
+        let request = milvus::proto::milvus::FlushRequest {
+            base: Some(new_msg(MsgType::Flush)),
+            collection_names: collection_names
+                .into_iter()
+                .map(|s| s.to_string())
+                .collect(),
+            ..Default::default()
+        };
+
+        let response = self.client.clone().flush(request).await?.into_inner();
+
+        status_to_result(&response.status)?;
+
+        let res = FlushResult {
+            db_name: response.db_name,
+            collection_segment_ids: response
+                .coll_seg_i_ds
+                .into_iter()
+                .map(|(key, value)| (key, value.data))
+                .collect(),
+            flush_collection_segment_ids: response
+                .flush_coll_seg_i_ds
+                .into_iter()
+                .map(|(key, value)| (key, value.data))
+                .collect(),
+            collection_seal_times: response.coll_seal_times,
+        };
+
+        Ok(res)
+    }
+
+    pub async fn query(
+        &self,
+        collection_name: &str,
+        expr: &str,
+        output_fields: Vec<&str>,
+        partition_names: Vec<&str>,
+        travel_timestamp: u64,
+        guarantee_timestamp: u64,
+        query_params: Option<HashMap<String, String>>,
+    ) -> Result<QueryResult> {
+        let request = milvus::proto::milvus::QueryRequest {
+            base: Some(new_msg(MsgType::Retrieve)),
+            collection_name: collection_name.to_string(),
+            expr: expr.to_string(),
+            output_fields: output_fields.into_iter().map(|s| s.to_string()).collect(),
+            partition_names: partition_names.into_iter().map(|s| s.to_string()).collect(),
+            travel_timestamp,
+            guarantee_timestamp,
+            query_params: query_params
+                .map(|x| {
+                    x.into_iter()
+                        .map(|(k, v)| KeyValuePair {
+                            key: k.clone(),
+                            value: v.clone(),
+                        })
+                        .collect()
+                })
+                .unwrap_or_default(),
+            ..Default::default()
+        };
+
+        let response = self.client.clone().query(request).await?.into_inner();
+
+        status_to_result(&response.status)?;
+
+        let res = QueryResult {
+            fields_data: response.fields_data.into_iter().map(|x| x.into()).collect(),
+            collection_name: response.collection_name,
+        };
+
+        Ok(res)
+    }
+
+    pub async fn get_flush_state(&self, segment_ids: Vec<i64>) -> Result<bool> {
+        let request = milvus::proto::milvus::GetFlushStateRequest {
+            segment_i_ds: segment_ids,
+        };
+
+        let response = self
+            .client
+            .clone()
+            .get_flush_state(request)
+            .await?
+            .into_inner();
+
+        status_to_result(&response.status)?;
+
+        Ok(response.flushed)
+    }
+
+    pub async fn get_persistent_segment_info(
+        &self,
+        db_name: &str,
+        collection_name: &str,
+    ) -> Result<Vec<PersistentSegmentInfo>> {
+        let request = milvus::proto::milvus::GetPersistentSegmentInfoRequest {
+            base: Some(new_msg(MsgType::ShowSegments)),
+            db_name: db_name.to_string(),
+            collection_name: collection_name.to_string(),
+        };
+
+        let response = self
+            .client
+            .clone()
+            .get_persistent_segment_info(request)
+            .await?
+            .into_inner();
+
+        status_to_result(&response.status)?;
+
+        let res = response
+            .infos
+            .into_iter()
+            .map(|x| PersistentSegmentInfo {
+                segment_id: x.segment_id,
+                collection_id: x.collection_id,
+                partition_id: x.partition_id,
+                num_rows: x.num_rows,
+                state: SegmentState::from_i32(x.state).unwrap(),
+            })
+            .collect();
+
+        Ok(res)
+    }
+
+    pub async fn get_query_segment_info(
+        &self,
+        db_name: &str,
+        collection_name: &str,
+    ) -> Result<Vec<QuerySegmentInfo>> {
+        let request = milvus::proto::milvus::GetQuerySegmentInfoRequest {
+            base: Some(new_msg(MsgType::SegmentInfo)),
+            db_name: db_name.to_string(),
+            collection_name: collection_name.to_string(),
+        };
+
+        let response = self
+            .client
+            .clone()
+            .get_query_segment_info(request)
+            .await?
+            .into_inner();
+
+        status_to_result(&response.status)?;
+
+        let res = response
+            .infos
+            .into_iter()
+            .map(|x| QuerySegmentInfo {
+                segment_id: x.segment_id,
+                collection_id: x.collection_id,
+                partition_id: x.partition_id,
+                mem_size: x.mem_size,
+                num_rows: x.num_rows,
+                index_name: x.index_name,
+                index_id: x.index_id,
+                node_id: x.node_id,
+                state: SegmentState::from_i32(x.state).unwrap(),
+                node_ids: x.node_ids,
+            })
+            .collect();
 
         Ok(res)
     }

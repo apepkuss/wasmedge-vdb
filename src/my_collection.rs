@@ -353,3 +353,53 @@ impl From<milvus::proto::schema::SearchResultData> for SearchResultData {
         }
     }
 }
+
+#[derive(Debug, Clone)]
+pub struct FlushResult {
+    pub db_name: String,
+    pub collection_segment_ids: std::collections::HashMap<String, Vec<i64>>,
+    pub flush_collection_segment_ids: std::collections::HashMap<String, Vec<i64>>,
+    pub collection_seal_times: std::collections::HashMap<String, i64>,
+}
+
+#[derive(Debug, Clone)]
+pub struct QueryResult {
+    pub fields_data: Vec<FieldData>,
+    pub collection_name: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct PersistentSegmentInfo {
+    pub segment_id: i64,
+    pub collection_id: i64,
+    pub partition_id: i64,
+    pub num_rows: i64,
+    pub state: SegmentState,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, FromPrimitive, ToPrimitive)]
+pub enum SegmentState {
+    None = 0,
+    NotExist = 1,
+    Growing = 2,
+    Sealed = 3,
+    Flushed = 4,
+    Flushing = 5,
+    Dropped = 6,
+    Importing = 7,
+}
+
+#[derive(Debug, Clone)]
+pub struct QuerySegmentInfo {
+    pub segment_id: i64,
+    pub collection_id: i64,
+    pub partition_id: i64,
+    pub mem_size: i64,
+    pub num_rows: i64,
+    pub index_name: String,
+    pub index_id: i64,
+    /// deprecated, check node_ids(NodeIds) field
+    pub node_id: i64,
+    pub state: SegmentState,
+    pub node_ids: Vec<i64>,
+}
