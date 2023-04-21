@@ -10,7 +10,7 @@ use tonic::transport::Channel;
 use tonic::Request;
 
 use crate::{
-    my_collection::{CollectionInfo, CollectionMetadata},
+    my_collection::{CollectionInfo, CollectionMetadata, PartitionInfo},
     my_error::{Error, Result},
     schema::CollectionSchema,
     utils::{new_msg, status_to_result},
@@ -325,6 +325,164 @@ impl Client {
             .into_inner();
 
         status_to_result(&Some(status))
+    }
+
+    /// Drop partition in created collection.
+    pub async fn drop_partition(&self, collection_name: &str, partition_name: &str) -> Result<()> {
+        let request = milvus::proto::milvus::DropPartitionRequest {
+            base: Some(new_msg(MsgType::DropPartition)),
+            collection_name: collection_name.to_string(),
+            partition_name: partition_name.to_string(),
+            ..Default::default()
+        };
+
+        let status = self
+            .client
+            .clone()
+            .drop_partition(request)
+            .await?
+            .into_inner();
+
+        status_to_result(&Some(status))
+    }
+
+    /// Check if partition exist in collection or not.
+    pub async fn has_partition(&self, collection_name: &str, partition_name: &str) -> Result<bool> {
+        let request = milvus::proto::milvus::HasPartitionRequest {
+            base: Some(new_msg(MsgType::HasPartition)),
+            collection_name: collection_name.to_string(),
+            partition_name: partition_name.to_string(),
+            ..Default::default()
+        };
+
+        let response = self
+            .client
+            .clone()
+            .has_partition(request)
+            .await?
+            .into_inner();
+
+        status_to_result(&response.status)?;
+
+        Ok(response.value)
+    }
+
+    /// Load specific partitions data of one collection into query nodes
+    /// Then you can get these data as result when you do vector search on this collection.
+    pub async fn load_partitions(
+        &self,
+        collection_name: &str,
+        partition_names: Vec<&str>,
+        replica_number: i32,
+    ) -> Result<()> {
+        let request = milvus::proto::milvus::LoadPartitionsRequest {
+            base: Some(new_msg(MsgType::LoadPartitions)),
+            collection_name: collection_name.to_string(),
+            partition_names: partition_names.iter().map(|x| x.to_string()).collect(),
+            replica_number,
+            ..Default::default()
+        };
+
+        let status = self
+            .client
+            .clone()
+            .load_partitions(request)
+            .await?
+            .into_inner();
+
+        status_to_result(&Some(status))
+    }
+
+    /// Release specific partitions data of one collection from query nodes.
+    /// Then you can not get these data as result when you do vector search on this collection.
+    pub async fn release_partitions(
+        &self,
+        collection_name: &str,
+        partition_names: Vec<&str>,
+    ) -> Result<()> {
+        let request = milvus::proto::milvus::ReleasePartitionsRequest {
+            base: Some(new_msg(MsgType::ReleasePartitions)),
+            collection_name: collection_name.to_string(),
+            partition_names: partition_names.iter().map(|x| x.to_string()).collect(),
+            ..Default::default()
+        };
+
+        let status = self
+            .client
+            .clone()
+            .release_partitions(request)
+            .await?
+            .into_inner();
+
+        status_to_result(&Some(status))
+    }
+
+    /// Get partition statistics.
+    pub async fn get_partition_stats(
+        &self,
+        collection_name: &str,
+        partition_name: &str,
+    ) -> Result<HashMap<String, String>> {
+        let request = milvus::proto::milvus::GetPartitionStatisticsRequest {
+            base: Some(new_msg(MsgType::GetPartitionStatistics)),
+            collection_name: collection_name.to_string(),
+            partition_name: partition_name.to_string(),
+            ..Default::default()
+        };
+
+        let response = self
+            .client
+            .clone()
+            .get_partition_statistics(request)
+            .await?
+            .into_inner();
+
+        status_to_result(&response.status)?;
+
+        let stats: HashMap<String, String> =
+            HashMap::from_iter(response.stats.into_iter().map(|x| (x.key, x.value)));
+
+        Ok(stats)
+    }
+
+    /// List all partitions for particular collection.
+    pub async fn show_partitions(
+        &self,
+        collection_name: &str,
+        partition_names: Option<Vec<&str>>,
+    ) -> Result<Vec<PartitionInfo>> {
+        let request = milvus::proto::milvus::ShowPartitionsRequest {
+            base: Some(new_msg(MsgType::ShowPartitions)),
+            collection_name: collection_name.to_string(),
+            partition_names: partition_names
+                .unwrap_or_default()
+                .iter()
+                .map(|x| x.to_string())
+                .collect(),
+            ..Default::default()
+        };
+
+        let response = self
+            .client
+            .clone()
+            .show_partitions(request)
+            .await?
+            .into_inner();
+
+        status_to_result(&response.status)?;
+
+        let mut res = vec![];
+        for i in 0..response.partition_names.len() {
+            res.push(PartitionInfo {
+                name: response.partition_names[i].clone(),
+                id: response.partition_i_ds[i],
+                created_timestamp: response.created_timestamps[i],
+                created_utc_timestamp: response.created_utc_timestamps[i],
+                in_memory_percentage: response.in_memory_percentages[i],
+            });
+        }
+
+        Ok(res)
     }
 }
 

@@ -27,3 +27,12 @@ pub struct CollectionInfo {
     pub in_memory_percentage: i64,
     pub query_service_available: bool,
 }
+
+#[derive(Debug, Clone)]
+pub struct PartitionInfo {
+    pub name: String,
+    pub id: i64,
+    pub created_timestamp: u64,
+    pub created_utc_timestamp: u64,
+    pub in_memory_percentage: i64,
+}
