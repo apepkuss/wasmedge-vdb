@@ -14,9 +14,23 @@ impl Collection {
         &self.schema
     }
 
-    // pub async fn get_load_percent(&self) -> VDBResult<i64> {
-    //     unimplemented!()
-    // }
+    pub async fn get_load_percent(&self) -> VDBResult<i64> {
+        self.inner
+            .get_load_percent()
+            .await
+            .map_err(|e| Box::new(e.into()))
+    }
+
+    pub async fn load(&self, replica_num: i32) -> VDBResult<()> {
+        self.inner
+            .load(replica_num)
+            .await
+            .map_err(|e| Box::new(e.into()))
+    }
+
+    pub async fn is_loaded(&self) -> VDBResult<bool> {
+        self.inner.is_loaded().await.map_err(|e| Box::new(e.into()))
+    }
 }
 
 #[derive(Debug, Clone)]

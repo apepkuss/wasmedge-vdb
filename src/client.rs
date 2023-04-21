@@ -69,10 +69,6 @@ impl Client {
         self.collections.get(name)
     }
 
-    pub fn collection_mut(&mut self, name: &str) -> Option<&mut Collection> {
-        self.collections.get_mut(name)
-    }
-
     pub fn collection_names(&self) -> Vec<&str> {
         self.collections.keys().map(|x| x.as_str()).collect()
     }
@@ -81,7 +77,16 @@ impl Client {
         self.collections.contains_key(name)
     }
 
-    pub async fn drop_collection(&mut self, name: &str) -> VDBResult<()> {
+    /// Release a collection from memory after a search or a query to reduce memory usage.
+    pub async fn release_collection(&mut self, name: &str) -> VDBResult<()> {
+        self.inner
+            .release_collection(name)
+            .await
+            .map_err(|e| Box::new(e.into()))
+    }
+
+    /// Remove a collection and the data within
+    pub async fn remove_collection(&mut self, name: &str) -> VDBResult<()> {
         self.collections.remove(name);
         self.inner
             .drop_collection(name)
@@ -89,6 +94,9 @@ impl Client {
             .map_err(|e| Box::new(e.into()))
     }
 
+    /// Seal all entities in the current collection.
+    ///
+    /// Note that any insertion after a flush operation results in generating new segments. And only sealed segments can be indexed.
     pub async fn flush_collections(
         &self,
         names: &[&str],
@@ -164,8 +172,8 @@ mod tests {
         assert!(result.is_ok());
 
         // has collection
-        assert!(client.has_collection("c1"));
-        assert!(client.has_collection("c2"));
+        assert!(client.has_collection(c1_name));
+        assert!(client.has_collection(c2_name));
 
         // list collections
         let names = client.collection_names();
@@ -176,6 +184,12 @@ mod tests {
         // get collection
         let c1 = client.collection(c1_name);
         assert!(c1.is_some());
+
+        // drop the `c1` collection
+        let result = client.remove_collection(c1_name).await;
+        assert!(result.is_ok());
+
+        assert!(!client.has_collection(c1_name));
 
         Ok(())
     }
