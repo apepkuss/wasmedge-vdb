@@ -1,5 +1,4 @@
 use crate::{common::ConsistencyLevel, schema::CollectionSchema};
-// use milvus::proto::milvus::UserEntity;
 use num_traits::FromPrimitive;
 
 #[derive(Debug, Clone)]
