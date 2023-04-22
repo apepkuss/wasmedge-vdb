@@ -13,10 +13,11 @@ use crate::my_collection::ComponentState;
 use crate::{
     my_collection::{
         Address, CollectionInfo, CollectionMetadata, CompactionMergeInfo, CompactionPlan,
-        CompactionState, CompactionStateResult, FieldData, FlushResult, ImportState,
-        ImportStateResult, IndexInfo, IndexProgress, IndexState, Metrics, MutationResult,
-        PartitionInfo, PersistentSegmentInfo, QueryResult, QuerySegmentInfo, ReplicaInfo,
-        SearchResult, SegmentState,
+        CompactionState, CompactionStateResult, FieldData, FlushResult, GrantEntity, Health,
+        ImportState, ImportStateResult, IndexInfo, IndexProgress, IndexState, Metrics,
+        MutationResult, OperatePrivilegeType, OperateUserRoleType, PartitionInfo,
+        PersistentSegmentInfo, QueryResult, QuerySegmentInfo, ReplicaInfo, RoleEntity, RoleResult,
+        SearchResult, SegmentState, User, UserEntity,
     },
     my_error::{Error, Result},
     schema::CollectionSchema,
@@ -1142,35 +1143,35 @@ impl Client {
         Ok(response.compaction_id)
     }
 
-    // pub async fn get_compaction_state_with_plans(
-    //     &self,
-    //     compaction_id: i64,
-    // ) -> Result<CompactionPlan> {
-    //     let request = milvus::proto::milvus::GetCompactionStateRequest { compaction_id };
+    pub async fn get_compaction_state_with_plans(
+        &self,
+        compaction_id: i64,
+    ) -> Result<CompactionPlan> {
+        let request = milvus::proto::milvus::GetCompactionPlansRequest { compaction_id };
 
-    //     let response = self
-    //         .client
-    //         .clone()
-    //         .get_compaction_state_with_plans(request)
-    //         .await?
-    //         .into_inner();
+        let response = self
+            .client
+            .clone()
+            .get_compaction_state_with_plans(request)
+            .await?
+            .into_inner();
 
-    //     status_to_result(&response.status)?;
+        status_to_result(&response.status)?;
 
-    //     let res = CompactionPlan {
-    //         state: CompactionState::from_i32(response.state).unwrap(),
-    //         merge_infos: response
-    //             .merge_infos
-    //             .into_iter()
-    //             .map(|x| CompactionMergeInfo {
-    //                 sources: x.sources,
-    //                 target: x.target,
-    //             })
-    //             .collect(),
-    //     };
+        let res = CompactionPlan {
+            state: CompactionState::from_i32(response.state).unwrap(),
+            merge_infos: response
+                .merge_infos
+                .into_iter()
+                .map(|x| CompactionMergeInfo {
+                    sources: x.sources,
+                    target: x.target,
+                })
+                .collect(),
+        };
 
-    //     Ok(res)
-    // }
+        Ok(res)
+    }
 
     pub async fn import(
         &self,
@@ -1228,6 +1229,296 @@ impl Client {
         };
 
         Ok(res)
+    }
+
+    pub async fn list_import_tasks(
+        &self,
+        collection_name: &str,
+        limit: i64,
+    ) -> Result<Vec<ImportStateResult>> {
+        let request = milvus::proto::milvus::ListImportTasksRequest {
+            collection_name: collection_name.to_string(),
+            limit,
+        };
+
+        let response = self
+            .client
+            .clone()
+            .list_import_tasks(request)
+            .await?
+            .into_inner();
+
+        status_to_result(&response.status)?;
+
+        let res = response.tasks.into_iter().map(|task| task.into()).collect();
+
+        Ok(res)
+    }
+
+    pub async fn create_credential(
+        &self,
+        username: &str,
+        password: &str,
+        created_utc_timestamps: u64,
+        modified_utc_timestamps: u64,
+    ) -> Result<()> {
+        let request = milvus::proto::milvus::CreateCredentialRequest {
+            base: Some(new_msg(MsgType::CreateCredential)),
+            username: username.to_string(),
+            password: password.to_string(),
+            created_utc_timestamps,
+            modified_utc_timestamps,
+        };
+
+        let status = self
+            .client
+            .clone()
+            .create_credential(request)
+            .await?
+            .into_inner();
+
+        status_to_result(&Some(status))
+    }
+
+    pub async fn update_credential(
+        &self,
+        username: &str,
+        old_password: &str,
+        new_password: &str,
+        created_utc_timestamps: u64,
+        modified_utc_timestamps: u64,
+    ) -> Result<()> {
+        let request = milvus::proto::milvus::UpdateCredentialRequest {
+            base: Some(new_msg(MsgType::UpdateCredential)),
+            username: username.to_string(),
+            old_password: old_password.to_string(),
+            new_password: new_password.to_string(),
+            created_utc_timestamps,
+            modified_utc_timestamps,
+        };
+
+        let status = self
+            .client
+            .clone()
+            .update_credential(request)
+            .await?
+            .into_inner();
+
+        status_to_result(&Some(status))
+    }
+
+    pub async fn delete_credential(&self, username: &str) -> Result<()> {
+        let request = milvus::proto::milvus::DeleteCredentialRequest {
+            base: Some(new_msg(MsgType::DeleteCredential)),
+            username: username.to_string(),
+        };
+
+        let status = self
+            .client
+            .clone()
+            .delete_credential(request)
+            .await?
+            .into_inner();
+
+        status_to_result(&Some(status))
+    }
+
+    pub async fn list_credential_usernames(&self) -> Result<Vec<String>> {
+        let request = milvus::proto::milvus::ListCredUsersRequest {
+            base: Some(new_msg(MsgType::ListCredUsernames)),
+        };
+
+        let response = self
+            .client
+            .clone()
+            .list_cred_users(request)
+            .await?
+            .into_inner();
+
+        status_to_result(&response.status)?;
+
+        Ok(response.usernames)
+    }
+
+    pub async fn create_role(&self, role: Option<RoleEntity>) -> Result<()> {
+        let request = milvus::proto::milvus::CreateRoleRequest {
+            base: Some(new_msg(MsgType::CreateRole)),
+            entity: role.map(|x| x.into()),
+        };
+
+        let status = self.client.clone().create_role(request).await?.into_inner();
+
+        status_to_result(&Some(status))
+    }
+
+    pub async fn drop_role(&self, role_name: &str) -> Result<()> {
+        let request = milvus::proto::milvus::DropRoleRequest {
+            base: Some(new_msg(MsgType::DropRole)),
+            role_name: role_name.to_string(),
+        };
+
+        let status = self.client.clone().drop_role(request).await?.into_inner();
+
+        status_to_result(&Some(status))
+    }
+
+    pub async fn operate_user_role(
+        &self,
+        username: &str,
+        role_name: &str,
+        ty: OperateUserRoleType,
+    ) -> Result<()> {
+        let request = milvus::proto::milvus::OperateUserRoleRequest {
+            base: Some(new_msg(MsgType::OperateUserRole)),
+            username: username.to_string(),
+            role_name: role_name.to_string(),
+            r#type: ty as i32,
+        };
+
+        let status = self
+            .client
+            .clone()
+            .operate_user_role(request)
+            .await?
+            .into_inner();
+
+        status_to_result(&Some(status))
+    }
+
+    pub async fn select_role(
+        &self,
+        role: Option<RoleEntity>,
+        include_user_info: bool,
+    ) -> Result<Vec<RoleResult>> {
+        let request = milvus::proto::milvus::SelectRoleRequest {
+            base: Some(new_msg(MsgType::SelectRole)),
+            role: role.map(|role| role.into()),
+            include_user_info,
+        };
+
+        let response = self.client.clone().select_role(request).await?.into_inner();
+
+        status_to_result(&response.status)?;
+
+        let res = response
+            .results
+            .into_iter()
+            .map(|role| RoleResult {
+                role: role.role.map(|role| role.into()),
+                users: role.users.into_iter().map(|user| user.into()).collect(),
+            })
+            .collect();
+
+        Ok(res)
+    }
+
+    pub async fn select_user(
+        &self,
+        user: Option<UserEntity>,
+        include_role_info: bool,
+    ) -> Result<Vec<User>> {
+        let request = milvus::proto::milvus::SelectUserRequest {
+            base: Some(new_msg(MsgType::SelectUser)),
+            user: user.map(|user| user.into()),
+            include_role_info,
+        };
+
+        let response = self.client.clone().select_user(request).await?.into_inner();
+
+        status_to_result(&response.status)?;
+
+        let res = response
+            .results
+            .into_iter()
+            .map(|user| User {
+                user: user.user.map(|user| user.into()),
+                roles: user.roles.into_iter().map(|role| role.into()).collect(),
+            })
+            .collect();
+
+        Ok(res)
+    }
+
+    pub async fn operate_privilege(
+        &self,
+        entity: GrantEntity,
+        ty: OperatePrivilegeType,
+    ) -> Result<()> {
+        let request = milvus::proto::milvus::OperatePrivilegeRequest {
+            base: Some(new_msg(MsgType::OperatePrivilege)),
+            entity: Some(entity.into()),
+            r#type: ty as i32,
+        };
+
+        let status = self
+            .client
+            .clone()
+            .operate_privilege(request)
+            .await?
+            .into_inner();
+
+        status_to_result(&Some(status))
+    }
+
+    pub async fn select_grant(&self, object_name: &str) -> Result<Vec<GrantEntity>> {
+        let entity = GrantEntity {
+            object_name: object_name.to_string(),
+            ..Default::default()
+        };
+        let request = milvus::proto::milvus::SelectGrantRequest {
+            base: Some(new_msg(MsgType::SelectGrant)),
+            entity: Some(entity.into()),
+        };
+
+        let response = self
+            .client
+            .clone()
+            .select_grant(request)
+            .await?
+            .into_inner();
+
+        status_to_result(&response.status)?;
+
+        let res = response
+            .entities
+            .into_iter()
+            .map(|grant| GrantEntity {
+                role: grant.role.map(|x| x.into()),
+                object: grant.object.map(|x| x.into()),
+                object_name: grant.object_name,
+                grantor: grant.grantor.map(|x| x.into()),
+            })
+            .collect();
+
+        Ok(res)
+    }
+
+    pub async fn get_version(&self) -> Result<String> {
+        let request = milvus::proto::milvus::GetVersionRequest {};
+
+        let response = self.client.clone().get_version(request).await?.into_inner();
+
+        status_to_result(&response.status)?;
+
+        Ok(response.version)
+    }
+
+    pub async fn check_health(&self) -> Result<Health> {
+        let request = milvus::proto::milvus::CheckHealthRequest {};
+
+        let response = self
+            .client
+            .clone()
+            .check_health(request)
+            .await?
+            .into_inner();
+
+        status_to_result(&response.status)?;
+
+        Ok(Health {
+            is_healthy: response.is_healthy,
+            reasons: response.reasons,
+        })
     }
 }
 

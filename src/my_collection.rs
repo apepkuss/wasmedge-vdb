@@ -1,4 +1,5 @@
 use crate::{common::ConsistencyLevel, schema::CollectionSchema};
+// use milvus::proto::milvus::UserEntity;
 use num_traits::FromPrimitive;
 
 #[derive(Debug, Clone)]
@@ -550,6 +551,24 @@ pub struct ImportStateResult {
     pub segment_ids: Vec<i64>,
     pub create_ts: i64,
 }
+impl From<milvus::proto::milvus::GetImportStateResponse> for ImportStateResult {
+    fn from(response: milvus::proto::milvus::GetImportStateResponse) -> Self {
+        ImportStateResult {
+            state: ImportState::from_i32(response.state).unwrap(),
+            row_count: response.row_count,
+            id_list: response.id_list,
+            infos: response
+                .infos
+                .into_iter()
+                .map(|kv| (kv.key, kv.value))
+                .collect(),
+            id: response.id,
+            collection_id: response.collection_id,
+            segment_ids: response.segment_ids,
+            create_ts: response.create_ts,
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, FromPrimitive, ToPrimitive)]
 pub enum ImportState {
@@ -565,4 +584,170 @@ pub enum ImportState {
     ImportCompleted = 6,
     /// the task failed and all segments it generated are cleaned up.
     ImportFailedAndCleaned = 7,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, FromPrimitive, ToPrimitive)]
+#[repr(i32)]
+pub enum OperateUserRoleType {
+    AddUserToRole = 0,
+    RemoveUserFromRole = 1,
+}
+
+#[derive(Debug, Clone)]
+pub struct RoleResult {
+    pub role: Option<RoleEntity>,
+    pub users: Vec<UserEntity>,
+}
+
+#[derive(Debug, Clone)]
+pub struct User {
+    pub user: Option<UserEntity>,
+    pub roles: Vec<RoleEntity>,
+}
+impl From<milvus::proto::milvus::UserResult> for User {
+    fn from(user: milvus::proto::milvus::UserResult) -> Self {
+        User {
+            user: user.user.map(|user| user.into()),
+            roles: user.roles.into_iter().map(|role| role.into()).collect(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, FromPrimitive, ToPrimitive)]
+#[repr(i32)]
+pub enum OperatePrivilegeType {
+    Grant = 0,
+    Revoke = 1,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct GrantEntity {
+    pub role: Option<RoleEntity>,
+    pub object: Option<ObjectEntity>,
+    pub object_name: String,
+    pub grantor: Option<GrantorEntity>,
+}
+impl From<milvus::proto::milvus::GrantEntity> for GrantEntity {
+    fn from(grant_entity: milvus::proto::milvus::GrantEntity) -> Self {
+        GrantEntity {
+            role: grant_entity.role.map(|role| role.into()),
+            object: grant_entity.object.map(|object| object.into()),
+            object_name: grant_entity.object_name,
+            grantor: grant_entity.grantor.map(|grantor| grantor.into()),
+        }
+    }
+}
+impl From<GrantEntity> for milvus::proto::milvus::GrantEntity {
+    fn from(grant_entity: GrantEntity) -> Self {
+        milvus::proto::milvus::GrantEntity {
+            role: grant_entity.role.map(|role| role.into()),
+            object: grant_entity.object.map(|object| object.into()),
+            object_name: grant_entity.object_name,
+            grantor: grant_entity.grantor.map(|grantor| grantor.into()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct GrantorEntity {
+    pub user: Option<UserEntity>,
+    pub privilege: Option<PrivilegeEntity>,
+}
+impl From<milvus::proto::milvus::GrantorEntity> for GrantorEntity {
+    fn from(grantor_entity: milvus::proto::milvus::GrantorEntity) -> Self {
+        GrantorEntity {
+            user: grantor_entity.user.map(|user| user.into()),
+            privilege: grantor_entity.privilege.map(|privilege| privilege.into()),
+        }
+    }
+}
+impl From<GrantorEntity> for milvus::proto::milvus::GrantorEntity {
+    fn from(grantor_entity: GrantorEntity) -> Self {
+        milvus::proto::milvus::GrantorEntity {
+            user: grantor_entity.user.map(|user| user.into()),
+            privilege: grantor_entity.privilege.map(|privilege| privilege.into()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct UserEntity {
+    pub name: String,
+}
+impl From<milvus::proto::milvus::UserEntity> for UserEntity {
+    fn from(user_entity: milvus::proto::milvus::UserEntity) -> Self {
+        UserEntity {
+            name: user_entity.name,
+        }
+    }
+}
+impl From<UserEntity> for milvus::proto::milvus::UserEntity {
+    fn from(user_entity: UserEntity) -> Self {
+        milvus::proto::milvus::UserEntity {
+            name: user_entity.name,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct PrivilegeEntity {
+    pub name: String,
+}
+impl From<milvus::proto::milvus::PrivilegeEntity> for PrivilegeEntity {
+    fn from(privilege_entity: milvus::proto::milvus::PrivilegeEntity) -> Self {
+        PrivilegeEntity {
+            name: privilege_entity.name,
+        }
+    }
+}
+impl From<PrivilegeEntity> for milvus::proto::milvus::PrivilegeEntity {
+    fn from(privilege_entity: PrivilegeEntity) -> Self {
+        milvus::proto::milvus::PrivilegeEntity {
+            name: privilege_entity.name,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ObjectEntity {
+    pub name: String,
+}
+impl From<milvus::proto::milvus::ObjectEntity> for ObjectEntity {
+    fn from(object_entity: milvus::proto::milvus::ObjectEntity) -> Self {
+        ObjectEntity {
+            name: object_entity.name,
+        }
+    }
+}
+impl From<ObjectEntity> for milvus::proto::milvus::ObjectEntity {
+    fn from(object_entity: ObjectEntity) -> Self {
+        milvus::proto::milvus::ObjectEntity {
+            name: object_entity.name,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct RoleEntity {
+    pub name: String,
+}
+impl From<milvus::proto::milvus::RoleEntity> for RoleEntity {
+    fn from(role_entity: milvus::proto::milvus::RoleEntity) -> Self {
+        RoleEntity {
+            name: role_entity.name,
+        }
+    }
+}
+impl From<RoleEntity> for milvus::proto::milvus::RoleEntity {
+    fn from(role_entity: RoleEntity) -> Self {
+        milvus::proto::milvus::RoleEntity {
+            name: role_entity.name,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Health {
+    pub is_healthy: bool,
+    pub reasons: Vec<String>,
 }
