@@ -1,5 +1,120 @@
-use crate::{common::ConsistencyLevel, schema::CollectionSchema};
+use crate::common::ConsistencyLevel;
 use num_traits::FromPrimitive;
+
+#[derive(Debug, Clone)]
+pub struct CollectionSchema {
+    pub name: String,
+    pub description: String,
+    pub auto_id: bool,
+    pub fields: Vec<FieldSchema>,
+}
+impl From<CollectionSchema> for milvus::proto::schema::CollectionSchema {
+    fn from(schema: CollectionSchema) -> Self {
+        Self {
+            name: schema.name.to_string(),
+            description: schema.description,
+            auto_id: false,
+            fields: schema.fields.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+impl From<milvus::proto::schema::CollectionSchema> for CollectionSchema {
+    fn from(schema: milvus::proto::schema::CollectionSchema) -> Self {
+        CollectionSchema {
+            name: schema.name,
+            description: schema.description,
+            auto_id: schema.auto_id,
+            fields: schema.fields.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct FieldSchema {
+    pub field_id: i64,
+    pub name: String,
+    pub is_primary_key: bool,
+    pub description: String,
+    pub data_type: DataType,
+    pub type_params: std::collections::HashMap<String, String>,
+    pub index_params: std::collections::HashMap<String, String>,
+    pub auto_id: bool,
+    /// To keep compatible with older version, the default state is `Created`.
+    pub state: FieldState,
+}
+impl From<FieldSchema> for milvus::proto::schema::FieldSchema {
+    fn from(field: FieldSchema) -> Self {
+        Self {
+            field_id: field.field_id,
+            name: field.name,
+            is_primary_key: field.is_primary_key,
+            description: field.description,
+            data_type: field.data_type as i32,
+            type_params: field
+                .type_params
+                .into_iter()
+                .map(|(k, v)| milvus::proto::common::KeyValuePair { key: k, value: v })
+                .collect(),
+            index_params: field
+                .index_params
+                .into_iter()
+                .map(|(k, v)| milvus::proto::common::KeyValuePair { key: k, value: v })
+                .collect(),
+            auto_id: field.auto_id,
+            state: field.state as i32,
+        }
+    }
+}
+impl From<milvus::proto::schema::FieldSchema> for FieldSchema {
+    fn from(field: milvus::proto::schema::FieldSchema) -> Self {
+        Self {
+            field_id: field.field_id,
+            name: field.name,
+            is_primary_key: field.is_primary_key,
+            description: field.description,
+            data_type: FromPrimitive::from_i32(field.data_type).unwrap(),
+            type_params: field
+                .type_params
+                .into_iter()
+                .map(|kv| (kv.key, kv.value))
+                .collect(),
+            index_params: field
+                .index_params
+                .into_iter()
+                .map(|kv| (kv.key, kv.value))
+                .collect(),
+            auto_id: field.auto_id,
+            state: FromPrimitive::from_i32(field.state).unwrap(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, FromPrimitive, ToPrimitive)]
+#[repr(i32)]
+pub enum DataType {
+    None = 0,
+    Bool = 1,
+    Int8 = 2,
+    Int16 = 3,
+    Int32 = 4,
+    Int64 = 5,
+    Float = 10,
+    Double = 11,
+    String = 20,
+    /// variable-length strings with a specified maximum length
+    VarChar = 21,
+    BinaryVector = 100,
+    FloatVector = 101,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, FromPrimitive, ToPrimitive)]
+#[repr(i32)]
+pub enum FieldState {
+    FieldCreated = 0,
+    FieldCreating = 1,
+    FieldDropping = 2,
+    FieldDropped = 3,
+}
 
 #[derive(Debug, Clone)]
 pub struct CollectionMetadata {
@@ -27,6 +142,15 @@ pub struct CollectionInfo {
     pub created_utc_timestamp: u64,
     pub in_memory_percentage: i64,
     pub query_service_available: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, FromPrimitive, ToPrimitive)]
+#[repr(i32)]
+pub enum ShowType {
+    /// Will return all collections
+    All = 0,
+    /// Will return loaded collections with their inMemory_percentages
+    InMemory = 1,
 }
 
 #[derive(Debug, Clone)]
@@ -749,4 +873,11 @@ impl From<RoleEntity> for milvus::proto::milvus::RoleEntity {
 pub struct Health {
     pub is_healthy: bool,
     pub reasons: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, FromPrimitive, ToPrimitive)]
+#[repr(i32)]
+pub enum DslType {
+    Dsl = 0,
+    BoolExprV1 = 1,
 }

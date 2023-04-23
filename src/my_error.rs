@@ -1,5 +1,5 @@
 // use crate::collection::Error as CollectionError;
-use crate::schema::SchemaError;
+// use crate::schema::SchemaError;
 use milvus::proto::common::{ErrorCode, Status};
 use std::result;
 use thiserror::Error;
@@ -16,9 +16,8 @@ pub enum Error {
     #[error("{0:?}")]
     Grpc(#[from] GrpcError),
 
-    #[error("{0:?}")]
-    Schema(#[from] SchemaError),
-
+    // #[error("{0:?}")]
+    // Schema(#[from] SchemaError),
     #[error("{0:?} {1:?}")]
     Server(ErrorCode, String),
 
