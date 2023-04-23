@@ -1,6 +1,9 @@
 // use crate::collection::Error as CollectionError;
 // use crate::schema::SchemaError;
-use milvus::proto::common::{ErrorCode, Status};
+use milvus::proto::{
+    common::{ErrorCode, Status},
+    schema::DataType,
+};
 use std::result;
 use thiserror::Error;
 use tonic::transport::Error as CommError;
@@ -16,8 +19,9 @@ pub enum Error {
     #[error("{0:?}")]
     Grpc(#[from] GrpcError),
 
-    // #[error("{0:?}")]
-    // Schema(#[from] SchemaError),
+    #[error("{0:?}")]
+    Schema(#[from] SchemaError),
+
     #[error("{0:?} {1:?}")]
     Server(ErrorCode, String),
 
@@ -40,6 +44,36 @@ pub enum Error {
     // Other(#[from] anyhow::Error),
     #[error("{0}")]
     Unexpected(String),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum SchemaError {
+    #[error("try to set primary key {0:?}, but {1:?} is also key")]
+    DuplicatePrimaryKey(String, String),
+
+    #[error("can not find any primary key")]
+    NoPrimaryKey,
+
+    #[error("primary key must be int64 or varchar, unsupported type {0:?}")]
+    UnsupportedPrimaryKey(DataType),
+
+    #[error("auto id must be int64, unsupported type {0:?}")]
+    UnsupportedAutoId(DataType),
+
+    #[error("dimension mismatch for {0:?}, expected dim {1:?}, got {2:?}")]
+    DimensionMismatch(String, i32, i32),
+
+    #[error("wrong field data type, field {0} expected to be{1:?}, but got {2:?}")]
+    FieldWrongType(String, DataType, DataType),
+
+    #[error("field does not exists in schema: {0:?}")]
+    FieldDoesNotExists(String),
+
+    #[error("can not find such key {0:?}")]
+    NoSuchKey(String),
+
+    #[error("field {0:?} must be a vector field")]
+    NotVectorField(String),
 }
 
 impl From<Status> for Error {

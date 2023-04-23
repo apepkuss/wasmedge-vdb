@@ -11,7 +11,7 @@ use tonic::transport::Channel;
 use tonic::Request;
 
 use crate::{
-    my_collection::{
+    common::{
         Address, CollectionInfo, CollectionMetadata, CollectionSchema, CompactionMergeInfo,
         CompactionPlan, CompactionState, CompactionStateResult, ComponentState, DslType, FieldData,
         FlushResult, GrantEntity, Health, ImportState, ImportStateResult, IndexInfo, IndexProgress,
