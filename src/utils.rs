@@ -1,6 +1,6 @@
 use milvus::proto::common::{ErrorCode, MsgBase, MsgType, Status};
 
-use crate::my_error::{Error, Result};
+use crate::error::{Error, Result};
 
 pub fn new_msg(mtype: MsgType) -> MsgBase {
     MsgBase {

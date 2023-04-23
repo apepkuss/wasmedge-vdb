@@ -19,7 +19,7 @@ use crate::{
         PartitionInfo, PersistentSegmentInfo, QueryResult, QuerySegmentInfo, ReplicaInfo,
         RoleEntity, RoleResult, SearchResult, SegmentState, ShowType, User, UserEntity,
     },
-    my_error::{Error, Result},
+    error::{Error, Result},
     utils::{new_msg, status_to_result},
 };
 
