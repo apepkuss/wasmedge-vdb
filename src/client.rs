@@ -1,8 +1,5 @@
 use base64::engine::general_purpose;
 use base64::Engine;
-// use milvus::collection;
-use milvus::proto::common::{ConsistencyLevel, KeyValuePair, MsgType};
-use milvus::proto::milvus::milvus_service_client::MilvusServiceClient;
 use num_traits::FromPrimitive;
 use prost::{bytes::BytesMut, Message};
 use tonic::codegen::InterceptedService;
@@ -13,13 +10,15 @@ use tonic::Request;
 use crate::{
     common::{
         Address, CollectionInfo, CollectionMetadata, CompactionMergeInfo, CompactionPlan,
-        CompactionState, CompactionStateResult, ComponentState, DslType, FieldData, FlushResult,
-        GrantEntity, Health, ImportState, ImportStateResult, IndexInfo, IndexProgress, IndexState,
-        Metrics, MutationResult, OperatePrivilegeType, OperateUserRoleType, PartitionInfo,
-        PersistentSegmentInfo, QueryResult, QuerySegmentInfo, ReplicaInfo, RoleEntity, RoleResult,
-        SearchResult, SegmentState, ShowType, User, UserEntity,
+        CompactionState, CompactionStateResult, ComponentState, ConsistencyLevel, DslType,
+        FieldData, FlushResult, GrantEntity, Health, ImportState, ImportStateResult, IndexInfo,
+        IndexProgress, IndexState, Metrics, MutationResult, OperatePrivilegeType,
+        OperateUserRoleType, PartitionInfo, PersistentSegmentInfo, QueryResult, QuerySegmentInfo,
+        ReplicaInfo, RoleEntity, RoleResult, SearchResult, SegmentState, ShowType, User,
+        UserEntity,
     },
     error::{Error, Result},
+    proto::{self, common::MsgType},
     schema::CollectionSchema,
     utils::{new_msg, status_to_result},
 };
@@ -28,7 +27,9 @@ use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct Client {
-    client: MilvusServiceClient<InterceptedService<Channel, AuthInterceptor>>,
+    client: proto::milvus::milvus_service_client::MilvusServiceClient<
+        InterceptedService<Channel, AuthInterceptor>,
+    >,
 }
 impl Client {
     pub async fn new(
@@ -63,7 +64,10 @@ impl Client {
 
         let conn = tonic::transport::Endpoint::new(dst)?.connect().await?;
 
-        let client = MilvusServiceClient::with_interceptor(conn, auth_interceptor);
+        let client = proto::milvus::milvus_service_client::MilvusServiceClient::with_interceptor(
+            conn,
+            auth_interceptor,
+        );
 
         Ok(Self { client })
     }
@@ -89,7 +93,7 @@ impl Client {
         level: Option<ConsistencyLevel>,
         properties: Option<HashMap<String, String>>,
     ) -> Result<()> {
-        let schema: milvus::proto::schema::CollectionSchema = schema.into();
+        let schema: proto::schema::CollectionSchema = schema.into();
         let mut buf = BytesMut::new();
         schema.encode(&mut buf)?;
         let schema: Vec<u8> = buf.to_vec();
@@ -100,15 +104,15 @@ impl Client {
 
         let properties = properties.unwrap_or_default();
 
-        let request = milvus::proto::milvus::CreateCollectionRequest {
+        let request = proto::milvus::CreateCollectionRequest {
             base: Some(new_msg(MsgType::CreateCollection)),
             collection_name: collection_name.to_string(),
             schema,
             shards_num,
-            consistency_level: consistency_level.into(),
+            consistency_level: consistency_level as i32,
             properties: properties
                 .iter()
-                .map(|(k, v)| KeyValuePair {
+                .map(|(k, v)| proto::common::KeyValuePair {
                     key: k.to_string(),
                     value: v.to_string(),
                 })
@@ -127,7 +131,7 @@ impl Client {
     }
 
     pub async fn drop_collection(&self, collection_name: &str) -> Result<()> {
-        let request = milvus::proto::milvus::DropCollectionRequest {
+        let request = proto::milvus::DropCollectionRequest {
             base: Some(new_msg(MsgType::DropCollection)),
             collection_name: collection_name.to_string(),
             ..Default::default()
@@ -156,7 +160,7 @@ impl Client {
         collection_name: &str,
         time_stamp: Option<u64>,
     ) -> Result<bool> {
-        let request = milvus::proto::milvus::HasCollectionRequest {
+        let request = proto::milvus::HasCollectionRequest {
             base: Some(new_msg(MsgType::HasCollection)),
             collection_name: collection_name.to_string(),
             time_stamp: time_stamp.unwrap_or(0),
@@ -193,7 +197,7 @@ impl Client {
     ) -> Result<()> {
         let replica_number = replica_num.unwrap_or(1);
 
-        let request = milvus::proto::milvus::LoadCollectionRequest {
+        let request = proto::milvus::LoadCollectionRequest {
             base: Some(new_msg(MsgType::LoadCollection)),
             db_name: db_name.to_string(),
             collection_name: collection_name.to_string(),
@@ -211,7 +215,7 @@ impl Client {
     }
 
     pub async fn release_collection(&self, db_name: &str, collection_name: &str) -> Result<()> {
-        let request = milvus::proto::milvus::ReleaseCollectionRequest {
+        let request = proto::milvus::ReleaseCollectionRequest {
             base: Some(new_msg(MsgType::ReleaseCollection)),
             db_name: db_name.to_string(),
             collection_name: collection_name.to_string(),
@@ -238,7 +242,7 @@ impl Client {
         collection_name: &str,
         time_stamp: Option<u64>,
     ) -> Result<CollectionMetadata> {
-        let request = milvus::proto::milvus::DescribeCollectionRequest {
+        let request = proto::milvus::DescribeCollectionRequest {
             base: Some(new_msg(MsgType::DescribeCollection)),
             collection_name: collection_name.to_string(),
             time_stamp: time_stamp.unwrap_or(0),
@@ -282,7 +286,7 @@ impl Client {
         db_name: &str,
         collection_name: &str,
     ) -> Result<HashMap<String, String>> {
-        let request = milvus::proto::milvus::GetCollectionStatisticsRequest {
+        let request = proto::milvus::GetCollectionStatisticsRequest {
             base: Some(new_msg(MsgType::GetCollectionStatistics)),
             db_name: db_name.to_string(),
             collection_name: collection_name.to_string(),
@@ -308,7 +312,7 @@ impl Client {
         &self,
         collection_names: Vec<&str>,
     ) -> Result<Vec<CollectionInfo>> {
-        let request = milvus::proto::milvus::ShowCollectionsRequest {
+        let request = proto::milvus::ShowCollectionsRequest {
             base: Some(new_msg(MsgType::ShowCollections)),
             collection_names: collection_names.iter().map(|x| x.to_string()).collect(),
             ..Default::default()
@@ -347,14 +351,14 @@ impl Client {
         collection_id: i64,
         properties: Vec<(String, String)>,
     ) -> Result<()> {
-        let request = milvus::proto::milvus::AlterCollectionRequest {
+        let request = proto::milvus::AlterCollectionRequest {
             base: Some(new_msg(MsgType::AlterCollection)),
             db_name: db_name.to_string(),
             collection_name: collection_name.to_string(),
             collection_id,
             properties: properties
                 .into_iter()
-                .map(|(key, value)| milvus::proto::common::KeyValuePair { key, value })
+                .map(|(key, value)| proto::common::KeyValuePair { key, value })
                 .collect(),
         };
 
@@ -381,7 +385,7 @@ impl Client {
         collection_name: &str,
         partition_name: &str,
     ) -> Result<()> {
-        let request = milvus::proto::milvus::CreatePartitionRequest {
+        let request = proto::milvus::CreatePartitionRequest {
             base: Some(new_msg(MsgType::CreatePartition)),
             db_name: db_name.to_string(),
             collection_name: collection_name.to_string(),
@@ -405,7 +409,7 @@ impl Client {
         collection_name: &str,
         partition_name: &str,
     ) -> Result<()> {
-        let request = milvus::proto::milvus::DropPartitionRequest {
+        let request = proto::milvus::DropPartitionRequest {
             base: Some(new_msg(MsgType::DropPartition)),
             db_name: db_name.to_string(),
             collection_name: collection_name.to_string(),
@@ -429,7 +433,7 @@ impl Client {
         collection_name: &str,
         partition_name: &str,
     ) -> Result<bool> {
-        let request = milvus::proto::milvus::HasPartitionRequest {
+        let request = proto::milvus::HasPartitionRequest {
             base: Some(new_msg(MsgType::HasPartition)),
             db_name: db_name.to_string(),
             collection_name: collection_name.to_string(),
@@ -457,7 +461,7 @@ impl Client {
         partition_names: Vec<&str>,
         replica_number: i32,
     ) -> Result<()> {
-        let request = milvus::proto::milvus::LoadPartitionsRequest {
+        let request = proto::milvus::LoadPartitionsRequest {
             base: Some(new_msg(MsgType::LoadPartitions)),
             db_name: db_name.to_string(),
             collection_name: collection_name.to_string(),
@@ -483,7 +487,7 @@ impl Client {
         collection_name: &str,
         partition_names: Vec<&str>,
     ) -> Result<()> {
-        let request = milvus::proto::milvus::ReleasePartitionsRequest {
+        let request = proto::milvus::ReleasePartitionsRequest {
             base: Some(new_msg(MsgType::ReleasePartitions)),
             db_name: db_name.to_string(),
             collection_name: collection_name.to_string(),
@@ -507,7 +511,7 @@ impl Client {
         collection_name: &str,
         partition_name: &str,
     ) -> Result<HashMap<String, String>> {
-        let request = milvus::proto::milvus::GetPartitionStatisticsRequest {
+        let request = proto::milvus::GetPartitionStatisticsRequest {
             base: Some(new_msg(MsgType::GetPartitionStatistics)),
             db_name: db_name.to_string(),
             collection_name: collection_name.to_string(),
@@ -538,7 +542,7 @@ impl Client {
         partition_names: Option<Vec<&str>>,
         ty: ShowType,
     ) -> Result<Vec<PartitionInfo>> {
-        let request = milvus::proto::milvus::ShowPartitionsRequest {
+        let request = proto::milvus::ShowPartitionsRequest {
             base: Some(new_msg(MsgType::ShowPartitions)),
             db_name: db_name.to_string(),
             collection_name: collection_name.to_string(),
@@ -579,7 +583,7 @@ impl Client {
         collection_name: &str,
         partition_names: Vec<&str>,
     ) -> Result<i64> {
-        let request = milvus::proto::milvus::GetLoadingProgressRequest {
+        let request = proto::milvus::GetLoadingProgressRequest {
             base: Some(new_msg(MsgType::LoadPartitions)),
             collection_name: collection_name.to_string(),
             partition_names: partition_names.iter().map(|x| x.to_string()).collect(),
@@ -603,7 +607,7 @@ impl Client {
         collection_name: &str,
         alias: &str,
     ) -> Result<()> {
-        let request = milvus::proto::milvus::CreateAliasRequest {
+        let request = proto::milvus::CreateAliasRequest {
             base: Some(new_msg(MsgType::CreateAlias)),
             db_name: db_name.to_string(),
             collection_name: collection_name.to_string(),
@@ -621,7 +625,7 @@ impl Client {
     }
 
     pub async fn drop_alias(&self, db_name: &str, alias: &str) -> Result<()> {
-        let request = milvus::proto::milvus::DropAliasRequest {
+        let request = proto::milvus::DropAliasRequest {
             base: Some(new_msg(MsgType::DropAlias)),
             db_name: db_name.to_string(),
             alias: alias.to_string(),
@@ -638,7 +642,7 @@ impl Client {
         collection_name: &str,
         alias: &str,
     ) -> Result<()> {
-        let request = milvus::proto::milvus::AlterAliasRequest {
+        let request = proto::milvus::AlterAliasRequest {
             base: Some(new_msg(MsgType::AlterAlias)),
             db_name: db_name.to_string(),
             alias: alias.to_string(),
@@ -669,7 +673,7 @@ impl Client {
         extra_params: Option<HashMap<String, String>>,
         index_name: Option<&str>,
     ) -> Result<()> {
-        let request = milvus::proto::milvus::CreateIndexRequest {
+        let request = proto::milvus::CreateIndexRequest {
             base: Some(new_msg(MsgType::CreateIndex)),
             db_name: db_name.to_string(),
             collection_name: collection_name.to_string(),
@@ -677,7 +681,7 @@ impl Client {
             extra_params: extra_params
                 .unwrap_or_default()
                 .iter()
-                .map(|(key, value)| KeyValuePair {
+                .map(|(key, value)| proto::common::KeyValuePair {
                     key: key.clone(),
                     value: value.clone(),
                 })
@@ -702,7 +706,7 @@ impl Client {
         field_name: &str,
         index_name: &str,
     ) -> Result<Vec<IndexInfo>> {
-        let request = milvus::proto::milvus::DescribeIndexRequest {
+        let request = proto::milvus::DescribeIndexRequest {
             base: Some(new_msg(MsgType::DescribeIndex)),
             db_name: db_name.to_string(),
             collection_name: collection_name.to_string(),
@@ -749,7 +753,7 @@ impl Client {
         field_name: &str,
         index_name: &str,
     ) -> Result<IndexState> {
-        let request = milvus::proto::milvus::GetIndexStateRequest {
+        let request = proto::milvus::GetIndexStateRequest {
             base: Some(new_msg(MsgType::GetIndexState)),
             db_name: db_name.to_string(),
             collection_name: collection_name.to_string(),
@@ -779,7 +783,7 @@ impl Client {
         field_name: &str,
         index_name: &str,
     ) -> Result<IndexProgress> {
-        let request = milvus::proto::milvus::GetIndexBuildProgressRequest {
+        let request = proto::milvus::GetIndexBuildProgressRequest {
             base: Some(new_msg(MsgType::GetIndexBuildProgress)),
             db_name: db_name.to_string(),
             collection_name: collection_name.to_string(),
@@ -809,7 +813,7 @@ impl Client {
         field_name: &str,
         index_name: &str,
     ) -> Result<()> {
-        let request = milvus::proto::milvus::DropIndexRequest {
+        let request = proto::milvus::DropIndexRequest {
             base: Some(new_msg(MsgType::DropIndex)),
             db_name: db_name.to_string(),
             collection_name: collection_name.to_string(),
@@ -831,7 +835,7 @@ impl Client {
         hash_keys: Vec<u32>,
         num_rows: u32,
     ) -> Result<MutationResult> {
-        let request = milvus::proto::milvus::InsertRequest {
+        let request = proto::milvus::InsertRequest {
             base: Some(new_msg(MsgType::Insert)),
             db_name: db_name.to_string(),
             collection_name: collection_name.to_string(),
@@ -870,7 +874,7 @@ impl Client {
         expr: &str,
         hash_keys: Vec<u32>,
     ) -> Result<MutationResult> {
-        let request = milvus::proto::milvus::DeleteRequest {
+        let request = proto::milvus::DeleteRequest {
             base: Some(new_msg(MsgType::Delete)),
             db_name: db_name.to_string(),
             collection_name: collection_name.to_string(),
@@ -911,7 +915,7 @@ impl Client {
         guarantee_timestamp: u64,
         nq: i64,
     ) -> Result<SearchResult> {
-        let request = milvus::proto::milvus::SearchRequest {
+        let request = proto::milvus::SearchRequest {
             base: Some(new_msg(MsgType::Search)),
             db_name: db_name.to_string(),
             collection_name: collection_name.to_string(),
@@ -922,7 +926,7 @@ impl Client {
             output_fields,
             search_params: search_params
                 .into_iter()
-                .map(|(k, v)| KeyValuePair {
+                .map(|(k, v)| proto::common::KeyValuePair {
                     key: k.clone(),
                     value: v.clone(),
                 })
@@ -945,7 +949,7 @@ impl Client {
     }
 
     pub async fn flush(&self, db_name: &str, collection_names: Vec<&str>) -> Result<FlushResult> {
-        let request = milvus::proto::milvus::FlushRequest {
+        let request = proto::milvus::FlushRequest {
             base: Some(new_msg(MsgType::Flush)),
             db_name: db_name.to_string(),
             collection_names: collection_names
@@ -987,7 +991,7 @@ impl Client {
         guarantee_timestamp: u64,
         query_params: Option<HashMap<String, String>>,
     ) -> Result<QueryResult> {
-        let request = milvus::proto::milvus::QueryRequest {
+        let request = proto::milvus::QueryRequest {
             base: Some(new_msg(MsgType::Retrieve)),
             db_name: db_name.to_string(),
             collection_name: collection_name.to_string(),
@@ -999,7 +1003,7 @@ impl Client {
             query_params: query_params
                 .map(|x| {
                     x.into_iter()
-                        .map(|(k, v)| KeyValuePair {
+                        .map(|(k, v)| proto::common::KeyValuePair {
                             key: k.clone(),
                             value: v.clone(),
                         })
@@ -1021,7 +1025,7 @@ impl Client {
     }
 
     pub async fn get_flush_state(&self, segment_ids: Vec<i64>) -> Result<bool> {
-        let request = milvus::proto::milvus::GetFlushStateRequest {
+        let request = proto::milvus::GetFlushStateRequest {
             segment_i_ds: segment_ids,
         };
 
@@ -1042,7 +1046,7 @@ impl Client {
         db_name: &str,
         collection_name: &str,
     ) -> Result<Vec<PersistentSegmentInfo>> {
-        let request = milvus::proto::milvus::GetPersistentSegmentInfoRequest {
+        let request = proto::milvus::GetPersistentSegmentInfoRequest {
             base: Some(new_msg(MsgType::ShowSegments)),
             db_name: db_name.to_string(),
             collection_name: collection_name.to_string(),
@@ -1077,7 +1081,7 @@ impl Client {
         db_name: &str,
         collection_name: &str,
     ) -> Result<Vec<QuerySegmentInfo>> {
-        let request = milvus::proto::milvus::GetQuerySegmentInfoRequest {
+        let request = proto::milvus::GetQuerySegmentInfoRequest {
             base: Some(new_msg(MsgType::SegmentInfo)),
             db_name: db_name.to_string(),
             collection_name: collection_name.to_string(),
@@ -1117,7 +1121,7 @@ impl Client {
         collection_id: i64,
         with_shard_nodes: bool,
     ) -> Result<Vec<ReplicaInfo>> {
-        let request = milvus::proto::milvus::GetReplicasRequest {
+        let request = proto::milvus::GetReplicasRequest {
             base: Some(new_msg(MsgType::GetReplicas)),
             collection_id,
             with_shard_nodes,
@@ -1138,7 +1142,7 @@ impl Client {
     }
 
     pub async fn dummy(&self, request_type: &str) -> Result<String> {
-        let request = milvus::proto::milvus::DummyRequest {
+        let request = proto::milvus::DummyRequest {
             request_type: request_type.to_string(),
         };
 
@@ -1148,7 +1152,7 @@ impl Client {
     }
 
     pub async fn register_link(&self) -> Result<Address> {
-        let request = milvus::proto::milvus::RegisterLinkRequest {};
+        let request = proto::milvus::RegisterLinkRequest {};
 
         let response = self
             .client
@@ -1164,7 +1168,7 @@ impl Client {
 
     /// `request` is of jsonic format
     pub async fn get_metrics(&self, request: String) -> Result<Metrics> {
-        let request = milvus::proto::milvus::GetMetricsRequest {
+        let request = proto::milvus::GetMetricsRequest {
             request,
             ..Default::default()
         };
@@ -1180,7 +1184,7 @@ impl Client {
     }
 
     pub async fn get_component_states(&self) -> Result<ComponentState> {
-        let request = milvus::proto::milvus::GetComponentStatesRequest {};
+        let request = proto::milvus::GetComponentStatesRequest {};
 
         let response = self
             .client
@@ -1210,7 +1214,7 @@ impl Client {
         sealed_segment_ids: Vec<i64>,
         collection_name: &str,
     ) -> Result<()> {
-        let request = milvus::proto::milvus::LoadBalanceRequest {
+        let request = proto::milvus::LoadBalanceRequest {
             base: Some(new_msg(MsgType::LoadBalanceSegments)),
             collection_name: collection_name.to_string(),
             src_node_id,
@@ -1231,7 +1235,7 @@ impl Client {
     }
 
     pub async fn get_compaction_state(&self, compaction_id: i64) -> Result<CompactionStateResult> {
-        let request = milvus::proto::milvus::GetCompactionStateRequest { compaction_id };
+        let request = proto::milvus::GetCompactionStateRequest { compaction_id };
 
         let response = self
             .client
@@ -1254,7 +1258,7 @@ impl Client {
     }
 
     pub async fn manual_compaction(&self, collection_id: i64, time_travel: u64) -> Result<i64> {
-        let request = milvus::proto::milvus::ManualCompactionRequest {
+        let request = proto::milvus::ManualCompactionRequest {
             collection_id,
             timetravel: time_travel,
         };
@@ -1275,7 +1279,7 @@ impl Client {
         &self,
         compaction_id: i64,
     ) -> Result<CompactionPlan> {
-        let request = milvus::proto::milvus::GetCompactionPlansRequest { compaction_id };
+        let request = proto::milvus::GetCompactionPlansRequest { compaction_id };
 
         let response = self
             .client
@@ -1310,7 +1314,7 @@ impl Client {
         files: Vec<&str>,
         options: HashMap<String, String>,
     ) -> Result<Vec<i64>> {
-        let request = milvus::proto::milvus::ImportRequest {
+        let request = proto::milvus::ImportRequest {
             collection_name: collection_name.to_string(),
             partition_name: partition_name.to_string(),
             channel_names: channel_names.iter().map(|x| x.to_string()).collect(),
@@ -1318,7 +1322,7 @@ impl Client {
             files: files.iter().map(|x| x.to_string()).collect(),
             options: options
                 .into_iter()
-                .map(|(key, value)| KeyValuePair { key, value })
+                .map(|(key, value)| proto::common::KeyValuePair { key, value })
                 .collect(),
         };
 
@@ -1330,7 +1334,7 @@ impl Client {
     }
 
     pub async fn get_import_state(&self, task_id: i64) -> Result<ImportStateResult> {
-        let request = milvus::proto::milvus::GetImportStateRequest { task: task_id };
+        let request = proto::milvus::GetImportStateRequest { task: task_id };
 
         let response = self
             .client
@@ -1370,7 +1374,7 @@ impl Client {
         collection_name: &str,
         limit: i64,
     ) -> Result<Vec<ImportStateResult>> {
-        let request = milvus::proto::milvus::ListImportTasksRequest {
+        let request = proto::milvus::ListImportTasksRequest {
             collection_name: collection_name.to_string(),
             limit,
         };
@@ -1407,7 +1411,7 @@ impl Client {
         created_utc_timestamps: u64,
         modified_utc_timestamps: u64,
     ) -> Result<()> {
-        let request = milvus::proto::milvus::CreateCredentialRequest {
+        let request = proto::milvus::CreateCredentialRequest {
             base: Some(new_msg(MsgType::CreateCredential)),
             username: username.to_string(),
             password: password.to_string(),
@@ -1446,7 +1450,7 @@ impl Client {
         created_utc_timestamps: u64,
         modified_utc_timestamps: u64,
     ) -> Result<()> {
-        let request = milvus::proto::milvus::UpdateCredentialRequest {
+        let request = proto::milvus::UpdateCredentialRequest {
             base: Some(new_msg(MsgType::UpdateCredential)),
             username: username.to_string(),
             old_password: old_password.to_string(),
@@ -1471,7 +1475,7 @@ impl Client {
     ///
     /// * `username` - The name of the user.
     pub async fn delete_credential(&self, username: &str) -> Result<()> {
-        let request = milvus::proto::milvus::DeleteCredentialRequest {
+        let request = proto::milvus::DeleteCredentialRequest {
             base: Some(new_msg(MsgType::DeleteCredential)),
             username: username.to_string(),
         };
@@ -1487,7 +1491,7 @@ impl Client {
     }
 
     pub async fn list_credential_usernames(&self) -> Result<Vec<String>> {
-        let request = milvus::proto::milvus::ListCredUsersRequest {
+        let request = proto::milvus::ListCredUsersRequest {
             base: Some(new_msg(MsgType::ListCredUsernames)),
         };
 
@@ -1504,7 +1508,7 @@ impl Client {
     }
 
     pub async fn create_role(&self, role: Option<RoleEntity>) -> Result<()> {
-        let request = milvus::proto::milvus::CreateRoleRequest {
+        let request = proto::milvus::CreateRoleRequest {
             base: Some(new_msg(MsgType::CreateRole)),
             entity: role.map(|x| x.into()),
         };
@@ -1515,7 +1519,7 @@ impl Client {
     }
 
     pub async fn drop_role(&self, role_name: &str) -> Result<()> {
-        let request = milvus::proto::milvus::DropRoleRequest {
+        let request = proto::milvus::DropRoleRequest {
             base: Some(new_msg(MsgType::DropRole)),
             role_name: role_name.to_string(),
         };
@@ -1531,7 +1535,7 @@ impl Client {
         role_name: &str,
         ty: OperateUserRoleType,
     ) -> Result<()> {
-        let request = milvus::proto::milvus::OperateUserRoleRequest {
+        let request = proto::milvus::OperateUserRoleRequest {
             base: Some(new_msg(MsgType::OperateUserRole)),
             username: username.to_string(),
             role_name: role_name.to_string(),
@@ -1553,7 +1557,7 @@ impl Client {
         role: Option<RoleEntity>,
         include_user_info: bool,
     ) -> Result<Vec<RoleResult>> {
-        let request = milvus::proto::milvus::SelectRoleRequest {
+        let request = proto::milvus::SelectRoleRequest {
             base: Some(new_msg(MsgType::SelectRole)),
             role: role.map(|role| role.into()),
             include_user_info,
@@ -1580,7 +1584,7 @@ impl Client {
         user: Option<UserEntity>,
         include_role_info: bool,
     ) -> Result<Vec<User>> {
-        let request = milvus::proto::milvus::SelectUserRequest {
+        let request = proto::milvus::SelectUserRequest {
             base: Some(new_msg(MsgType::SelectUser)),
             user: user.map(|user| user.into()),
             include_role_info,
@@ -1607,7 +1611,7 @@ impl Client {
         entity: GrantEntity,
         ty: OperatePrivilegeType,
     ) -> Result<()> {
-        let request = milvus::proto::milvus::OperatePrivilegeRequest {
+        let request = proto::milvus::OperatePrivilegeRequest {
             base: Some(new_msg(MsgType::OperatePrivilege)),
             entity: Some(entity.into()),
             r#type: ty as i32,
@@ -1628,7 +1632,7 @@ impl Client {
             object_name: object_name.to_string(),
             ..Default::default()
         };
-        let request = milvus::proto::milvus::SelectGrantRequest {
+        let request = proto::milvus::SelectGrantRequest {
             base: Some(new_msg(MsgType::SelectGrant)),
             entity: Some(entity.into()),
         };
@@ -1657,7 +1661,7 @@ impl Client {
     }
 
     pub async fn get_version(&self) -> Result<String> {
-        let request = milvus::proto::milvus::GetVersionRequest {};
+        let request = proto::milvus::GetVersionRequest {};
 
         let response = self.client.clone().get_version(request).await?.into_inner();
 
@@ -1667,7 +1671,7 @@ impl Client {
     }
 
     pub async fn check_health(&self) -> Result<Health> {
-        let request = milvus::proto::milvus::CheckHealthRequest {};
+        let request = proto::milvus::CheckHealthRequest {};
 
         let response = self
             .client

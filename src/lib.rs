@@ -4,5 +4,6 @@ extern crate num_derive;
 pub mod client;
 pub mod common;
 pub mod error;
+pub mod proto;
 pub mod schema;
 pub mod utils;

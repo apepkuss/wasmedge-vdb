@@ -1,4 +1,7 @@
-use crate::common::{DataType, FieldState};
+use crate::{
+    common::{DataType, FieldState},
+    proto,
+};
 use num_traits::FromPrimitive;
 
 #[derive(Debug, Clone, Default)]
@@ -8,7 +11,7 @@ pub struct CollectionSchema {
     pub(crate) auto_id: bool,
     pub(crate) fields: Vec<FieldSchema>,
 }
-impl From<CollectionSchema> for milvus::proto::schema::CollectionSchema {
+impl From<CollectionSchema> for proto::schema::CollectionSchema {
     fn from(schema: CollectionSchema) -> Self {
         Self {
             name: schema.name.to_string(),
@@ -18,8 +21,8 @@ impl From<CollectionSchema> for milvus::proto::schema::CollectionSchema {
         }
     }
 }
-impl From<milvus::proto::schema::CollectionSchema> for CollectionSchema {
-    fn from(schema: milvus::proto::schema::CollectionSchema) -> Self {
+impl From<proto::schema::CollectionSchema> for CollectionSchema {
+    fn from(schema: proto::schema::CollectionSchema) -> Self {
         CollectionSchema {
             name: schema.name,
             description: schema.description,
@@ -64,7 +67,7 @@ pub struct FieldSchema {
     /// To keep compatible with older version, the default state is `Created`.
     pub(crate) state: FieldState,
 }
-impl From<FieldSchema> for milvus::proto::schema::FieldSchema {
+impl From<FieldSchema> for proto::schema::FieldSchema {
     fn from(field: FieldSchema) -> Self {
         Self {
             name: field.name,
@@ -74,12 +77,12 @@ impl From<FieldSchema> for milvus::proto::schema::FieldSchema {
             type_params: field
                 .type_params
                 .into_iter()
-                .map(|(k, v)| milvus::proto::common::KeyValuePair { key: k, value: v })
+                .map(|(k, v)| proto::common::KeyValuePair { key: k, value: v })
                 .collect(),
             index_params: field
                 .index_params
                 .into_iter()
-                .map(|(k, v)| milvus::proto::common::KeyValuePair { key: k, value: v })
+                .map(|(k, v)| proto::common::KeyValuePair { key: k, value: v })
                 .collect(),
             auto_id: field.auto_id,
             state: field.state as i32,
@@ -87,8 +90,8 @@ impl From<FieldSchema> for milvus::proto::schema::FieldSchema {
         }
     }
 }
-impl From<milvus::proto::schema::FieldSchema> for FieldSchema {
-    fn from(field: milvus::proto::schema::FieldSchema) -> Self {
+impl From<proto::schema::FieldSchema> for FieldSchema {
+    fn from(field: proto::schema::FieldSchema) -> Self {
         Self {
             field_id: field.field_id,
             name: field.name,

@@ -1,4 +1,4 @@
-use crate::schema::CollectionSchema;
+use crate::{proto, schema::CollectionSchema};
 use num_traits::{FromPrimitive, ToPrimitive};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, FromPrimitive, ToPrimitive)]
@@ -12,13 +12,13 @@ pub enum ConsistencyLevel {
     /// Users pass their own `guarantee_timestamp`.
     Customized = 4,
 }
-impl From<ConsistencyLevel> for milvus::proto::common::ConsistencyLevel {
+impl From<ConsistencyLevel> for proto::common::ConsistencyLevel {
     fn from(level: ConsistencyLevel) -> Self {
-        milvus::proto::common::ConsistencyLevel::from_i32(level.to_i32().unwrap()).unwrap()
+        proto::common::ConsistencyLevel::from_i32(level.to_i32().unwrap()).unwrap()
     }
 }
-impl From<milvus::proto::common::ConsistencyLevel> for ConsistencyLevel {
-    fn from(level: milvus::proto::common::ConsistencyLevel) -> Self {
+impl From<proto::common::ConsistencyLevel> for ConsistencyLevel {
+    fn from(level: proto::common::ConsistencyLevel) -> Self {
         ConsistencyLevel::from_i32(level as i32).unwrap()
     }
 }
@@ -30,7 +30,7 @@ impl From<milvus::proto::common::ConsistencyLevel> for ConsistencyLevel {
 //     pub(crate) auto_id: bool,
 //     pub(crate) fields: Vec<FieldSchema>,
 // }
-// impl From<CollectionSchema> for milvus::proto::schema::CollectionSchema {
+// impl From<CollectionSchema> for proto::schema::CollectionSchema {
 //     fn from(schema: CollectionSchema) -> Self {
 //         Self {
 //             name: schema.name.to_string(),
@@ -40,8 +40,8 @@ impl From<milvus::proto::common::ConsistencyLevel> for ConsistencyLevel {
 //         }
 //     }
 // }
-// impl From<milvus::proto::schema::CollectionSchema> for CollectionSchema {
-//     fn from(schema: milvus::proto::schema::CollectionSchema) -> Self {
+// impl From<proto::schema::CollectionSchema> for CollectionSchema {
+//     fn from(schema: proto::schema::CollectionSchema) -> Self {
 //         CollectionSchema {
 //             name: schema.name,
 //             description: schema.description,
@@ -86,7 +86,7 @@ impl From<milvus::proto::common::ConsistencyLevel> for ConsistencyLevel {
 //     /// To keep compatible with older version, the default state is `Created`.
 //     pub(crate) state: FieldState,
 // }
-// impl From<FieldSchema> for milvus::proto::schema::FieldSchema {
+// impl From<FieldSchema> for proto::schema::FieldSchema {
 //     fn from(field: FieldSchema) -> Self {
 //         Self {
 //             name: field.name,
@@ -96,12 +96,12 @@ impl From<milvus::proto::common::ConsistencyLevel> for ConsistencyLevel {
 //             type_params: field
 //                 .type_params
 //                 .into_iter()
-//                 .map(|(k, v)| milvus::proto::common::KeyValuePair { key: k, value: v })
+//                 .map(|(k, v)| proto::common::KeyValuePair { key: k, value: v })
 //                 .collect(),
 //             index_params: field
 //                 .index_params
 //                 .into_iter()
-//                 .map(|(k, v)| milvus::proto::common::KeyValuePair { key: k, value: v })
+//                 .map(|(k, v)| proto::common::KeyValuePair { key: k, value: v })
 //                 .collect(),
 //             auto_id: field.auto_id,
 //             state: field.state as i32,
@@ -109,8 +109,8 @@ impl From<milvus::proto::common::ConsistencyLevel> for ConsistencyLevel {
 //         }
 //     }
 // }
-// impl From<milvus::proto::schema::FieldSchema> for FieldSchema {
-//     fn from(field: milvus::proto::schema::FieldSchema) -> Self {
+// impl From<proto::schema::FieldSchema> for FieldSchema {
+//     fn from(field: proto::schema::FieldSchema) -> Self {
 //         Self {
 //             field_id: field.field_id,
 //             name: field.name,
@@ -318,7 +318,7 @@ pub struct FieldData {
     pub field_id: i64,
     pub field: Option<Field>,
 }
-impl From<FieldData> for milvus::proto::schema::FieldData {
+impl From<FieldData> for proto::schema::FieldData {
     fn from(field_data: FieldData) -> Self {
         Self {
             r#type: field_data.data_type,
@@ -328,8 +328,8 @@ impl From<FieldData> for milvus::proto::schema::FieldData {
         }
     }
 }
-impl From<milvus::proto::schema::FieldData> for FieldData {
-    fn from(field_data: milvus::proto::schema::FieldData) -> Self {
+impl From<proto::schema::FieldData> for FieldData {
+    fn from(field_data: proto::schema::FieldData) -> Self {
         Self {
             data_type: field_data.r#type,
             field_name: field_data.field_name,
@@ -344,30 +344,30 @@ pub enum Field {
     Scalars(ScalarField),
     Vectors(VectorField),
 }
-impl From<Field> for milvus::proto::schema::field_data::Field {
+impl From<Field> for proto::schema::field_data::Field {
     fn from(field: Field) -> Self {
         match field {
-            Field::Scalars(scalar_field) => milvus::proto::schema::field_data::Field::Scalars(
-                milvus::proto::schema::ScalarField {
+            Field::Scalars(scalar_field) => {
+                proto::schema::field_data::Field::Scalars(proto::schema::ScalarField {
                     data: scalar_field.data.map(|data| data.into()),
-                },
-            ),
-            Field::Vectors(vector_field) => milvus::proto::schema::field_data::Field::Vectors(
-                milvus::proto::schema::VectorField {
+                })
+            }
+            Field::Vectors(vector_field) => {
+                proto::schema::field_data::Field::Vectors(proto::schema::VectorField {
                     dim: vector_field.dim,
                     data: vector_field.data.map(|data| data.into()),
-                },
-            ),
+                })
+            }
         }
     }
 }
-impl From<milvus::proto::schema::field_data::Field> for Field {
-    fn from(field: milvus::proto::schema::field_data::Field) -> Self {
+impl From<proto::schema::field_data::Field> for Field {
+    fn from(field: proto::schema::field_data::Field) -> Self {
         match field {
-            milvus::proto::schema::field_data::Field::Scalars(scalar_field) => {
+            proto::schema::field_data::Field::Scalars(scalar_field) => {
                 Field::Scalars(scalar_field.into())
             }
-            milvus::proto::schema::field_data::Field::Vectors(vector_field) => {
+            proto::schema::field_data::Field::Vectors(vector_field) => {
                 Field::Vectors(vector_field.into())
             }
         }
@@ -378,15 +378,15 @@ impl From<milvus::proto::schema::field_data::Field> for Field {
 pub struct ScalarField {
     pub data: Option<ScalarFieldData>,
 }
-impl From<ScalarField> for milvus::proto::schema::ScalarField {
+impl From<ScalarField> for proto::schema::ScalarField {
     fn from(field: ScalarField) -> Self {
-        milvus::proto::schema::ScalarField {
+        proto::schema::ScalarField {
             data: field.data.map(|data| data.into()),
         }
     }
 }
-impl From<milvus::proto::schema::ScalarField> for ScalarField {
-    fn from(field: milvus::proto::schema::ScalarField) -> Self {
+impl From<proto::schema::ScalarField> for ScalarField {
+    fn from(field: proto::schema::ScalarField) -> Self {
         Self {
             data: field.data.map(|data| data.into()),
         }
@@ -402,61 +402,47 @@ pub enum ScalarFieldData {
     StringData(Vec<String>),
     BytesData(Vec<Vec<u8>>),
 }
-impl From<ScalarFieldData> for milvus::proto::schema::scalar_field::Data {
+impl From<ScalarFieldData> for proto::schema::scalar_field::Data {
     fn from(data: ScalarFieldData) -> Self {
         match data {
-            ScalarFieldData::BoolData(v) => milvus::proto::schema::scalar_field::Data::BoolData({
-                milvus::proto::schema::BoolArray { data: v }
+            ScalarFieldData::BoolData(v) => proto::schema::scalar_field::Data::BoolData({
+                proto::schema::BoolArray { data: v }
             }),
-            ScalarFieldData::IntData(v) => milvus::proto::schema::scalar_field::Data::IntData(
-                milvus::proto::schema::IntArray { data: v },
-            ),
-            ScalarFieldData::LongData(v) => milvus::proto::schema::scalar_field::Data::LongData(
-                milvus::proto::schema::LongArray { data: v },
-            ),
-            ScalarFieldData::FloatData(v) => milvus::proto::schema::scalar_field::Data::FloatData(
-                milvus::proto::schema::FloatArray { data: v },
-            ),
+            ScalarFieldData::IntData(v) => {
+                proto::schema::scalar_field::Data::IntData(proto::schema::IntArray { data: v })
+            }
+            ScalarFieldData::LongData(v) => {
+                proto::schema::scalar_field::Data::LongData(proto::schema::LongArray { data: v })
+            }
+            ScalarFieldData::FloatData(v) => {
+                proto::schema::scalar_field::Data::FloatData(proto::schema::FloatArray { data: v })
+            }
             ScalarFieldData::DoubleData(v) => {
-                milvus::proto::schema::scalar_field::Data::DoubleData(
-                    milvus::proto::schema::DoubleArray { data: v },
-                )
+                proto::schema::scalar_field::Data::DoubleData(proto::schema::DoubleArray {
+                    data: v,
+                })
             }
             ScalarFieldData::StringData(v) => {
-                milvus::proto::schema::scalar_field::Data::StringData(
-                    milvus::proto::schema::StringArray { data: v },
-                )
+                proto::schema::scalar_field::Data::StringData(proto::schema::StringArray {
+                    data: v,
+                })
             }
-            ScalarFieldData::BytesData(v) => milvus::proto::schema::scalar_field::Data::BytesData(
-                milvus::proto::schema::BytesArray { data: v },
-            ),
+            ScalarFieldData::BytesData(v) => {
+                proto::schema::scalar_field::Data::BytesData(proto::schema::BytesArray { data: v })
+            }
         }
     }
 }
-impl From<milvus::proto::schema::scalar_field::Data> for ScalarFieldData {
-    fn from(data: milvus::proto::schema::scalar_field::Data) -> Self {
+impl From<proto::schema::scalar_field::Data> for ScalarFieldData {
+    fn from(data: proto::schema::scalar_field::Data) -> Self {
         match data {
-            milvus::proto::schema::scalar_field::Data::BoolData(v) => {
-                ScalarFieldData::BoolData(v.data)
-            }
-            milvus::proto::schema::scalar_field::Data::IntData(v) => {
-                ScalarFieldData::IntData(v.data)
-            }
-            milvus::proto::schema::scalar_field::Data::LongData(v) => {
-                ScalarFieldData::LongData(v.data)
-            }
-            milvus::proto::schema::scalar_field::Data::FloatData(v) => {
-                ScalarFieldData::FloatData(v.data)
-            }
-            milvus::proto::schema::scalar_field::Data::DoubleData(v) => {
-                ScalarFieldData::DoubleData(v.data)
-            }
-            milvus::proto::schema::scalar_field::Data::StringData(v) => {
-                ScalarFieldData::StringData(v.data)
-            }
-            milvus::proto::schema::scalar_field::Data::BytesData(v) => {
-                ScalarFieldData::BytesData(v.data)
-            }
+            proto::schema::scalar_field::Data::BoolData(v) => ScalarFieldData::BoolData(v.data),
+            proto::schema::scalar_field::Data::IntData(v) => ScalarFieldData::IntData(v.data),
+            proto::schema::scalar_field::Data::LongData(v) => ScalarFieldData::LongData(v.data),
+            proto::schema::scalar_field::Data::FloatData(v) => ScalarFieldData::FloatData(v.data),
+            proto::schema::scalar_field::Data::DoubleData(v) => ScalarFieldData::DoubleData(v.data),
+            proto::schema::scalar_field::Data::StringData(v) => ScalarFieldData::StringData(v.data),
+            proto::schema::scalar_field::Data::BytesData(v) => ScalarFieldData::BytesData(v.data),
         }
     }
 }
@@ -466,16 +452,16 @@ pub struct VectorField {
     pub dim: i64,
     pub data: Option<VectorFieldData>,
 }
-impl From<VectorField> for milvus::proto::schema::VectorField {
+impl From<VectorField> for proto::schema::VectorField {
     fn from(field: VectorField) -> Self {
-        milvus::proto::schema::VectorField {
+        proto::schema::VectorField {
             dim: field.dim,
             data: field.data.map(|data| data.into()),
         }
     }
 }
-impl From<milvus::proto::schema::VectorField> for VectorField {
-    fn from(field: milvus::proto::schema::VectorField) -> Self {
+impl From<proto::schema::VectorField> for VectorField {
+    fn from(field: proto::schema::VectorField) -> Self {
         VectorField {
             dim: field.dim,
             data: field.data.map(|data| data.into()),
@@ -487,27 +473,23 @@ pub enum VectorFieldData {
     BinaryVec(Vec<u8>),
     FloatVec(Vec<f32>),
 }
-impl From<VectorFieldData> for milvus::proto::schema::vector_field::Data {
+impl From<VectorFieldData> for proto::schema::vector_field::Data {
     fn from(data: VectorFieldData) -> Self {
         match data {
-            VectorFieldData::BinaryVec(v) => {
-                milvus::proto::schema::vector_field::Data::BinaryVector(v)
+            VectorFieldData::BinaryVec(v) => proto::schema::vector_field::Data::BinaryVector(v),
+            VectorFieldData::FloatVec(v) => {
+                proto::schema::vector_field::Data::FloatVector(proto::schema::FloatArray {
+                    data: v,
+                })
             }
-            VectorFieldData::FloatVec(v) => milvus::proto::schema::vector_field::Data::FloatVector(
-                milvus::proto::schema::FloatArray { data: v },
-            ),
         }
     }
 }
-impl From<milvus::proto::schema::vector_field::Data> for VectorFieldData {
-    fn from(data: milvus::proto::schema::vector_field::Data) -> Self {
+impl From<proto::schema::vector_field::Data> for VectorFieldData {
+    fn from(data: proto::schema::vector_field::Data) -> Self {
         match data {
-            milvus::proto::schema::vector_field::Data::BinaryVector(v) => {
-                VectorFieldData::BinaryVec(v)
-            }
-            milvus::proto::schema::vector_field::Data::FloatVector(v) => {
-                VectorFieldData::FloatVec(v.data)
-            }
+            proto::schema::vector_field::Data::BinaryVector(v) => VectorFieldData::BinaryVec(v),
+            proto::schema::vector_field::Data::FloatVector(v) => VectorFieldData::FloatVec(v.data),
         }
     }
 }
@@ -528,15 +510,15 @@ pub struct MutationResult {
 pub struct Id {
     id_field: Option<IdField>,
 }
-impl From<Id> for milvus::proto::schema::IDs {
+impl From<Id> for proto::schema::IDs {
     fn from(id: Id) -> Self {
-        milvus::proto::schema::IDs {
+        proto::schema::IDs {
             id_field: id.id_field.map(|id_field| id_field.into()),
         }
     }
 }
-impl From<milvus::proto::schema::IDs> for Id {
-    fn from(ids: milvus::proto::schema::IDs) -> Self {
+impl From<proto::schema::IDs> for Id {
+    fn from(ids: proto::schema::IDs) -> Self {
         Id {
             id_field: ids.id_field.map(|id_field| id_field.into()),
         }
@@ -547,27 +529,23 @@ pub enum IdField {
     IntId(Vec<i64>),
     StrId(Vec<String>),
 }
-impl From<IdField> for milvus::proto::schema::i_ds::IdField {
+impl From<IdField> for proto::schema::i_ds::IdField {
     fn from(id_field: IdField) -> Self {
         match id_field {
             IdField::IntId(v) => {
-                milvus::proto::schema::i_ds::IdField::IntId(milvus::proto::schema::LongArray {
-                    data: v,
-                })
+                proto::schema::i_ds::IdField::IntId(proto::schema::LongArray { data: v })
             }
             IdField::StrId(v) => {
-                milvus::proto::schema::i_ds::IdField::StrId(milvus::proto::schema::StringArray {
-                    data: v,
-                })
+                proto::schema::i_ds::IdField::StrId(proto::schema::StringArray { data: v })
             }
         }
     }
 }
-impl From<milvus::proto::schema::i_ds::IdField> for IdField {
-    fn from(id_field: milvus::proto::schema::i_ds::IdField) -> Self {
+impl From<proto::schema::i_ds::IdField> for IdField {
+    fn from(id_field: proto::schema::i_ds::IdField) -> Self {
         match id_field {
-            milvus::proto::schema::i_ds::IdField::IntId(v) => IdField::IntId(v.data),
-            milvus::proto::schema::i_ds::IdField::StrId(v) => IdField::StrId(v.data),
+            proto::schema::i_ds::IdField::IntId(v) => IdField::IntId(v.data),
+            proto::schema::i_ds::IdField::StrId(v) => IdField::StrId(v.data),
         }
     }
 }
@@ -587,8 +565,8 @@ pub struct SearchResultData {
     pub id: Option<Id>,
     pub topks: Vec<i64>,
 }
-impl From<milvus::proto::schema::SearchResultData> for SearchResultData {
-    fn from(data: milvus::proto::schema::SearchResultData) -> Self {
+impl From<proto::schema::SearchResultData> for SearchResultData {
+    fn from(data: proto::schema::SearchResultData) -> Self {
         SearchResultData {
             num_queries: data.num_queries,
             top_k: data.top_k,
@@ -664,8 +642,8 @@ pub struct ReplicaInfo {
     /// include leaders
     pub node_ids: Vec<i64>,
 }
-impl From<milvus::proto::milvus::ReplicaInfo> for ReplicaInfo {
-    fn from(replica_info: milvus::proto::milvus::ReplicaInfo) -> Self {
+impl From<proto::milvus::ReplicaInfo> for ReplicaInfo {
+    fn from(replica_info: proto::milvus::ReplicaInfo) -> Self {
         ReplicaInfo {
             replica_id: replica_info.replica_id,
             collection_id: replica_info.collection_id,
@@ -690,8 +668,8 @@ pub struct ShardReplica {
     /// if with_shard_nodes is true
     pub node_ids: Vec<i64>,
 }
-impl From<milvus::proto::milvus::ShardReplica> for ShardReplica {
-    fn from(shard_replica: milvus::proto::milvus::ShardReplica) -> Self {
+impl From<proto::milvus::ShardReplica> for ShardReplica {
+    fn from(shard_replica: proto::milvus::ShardReplica) -> Self {
         ShardReplica {
             leader_id: shard_replica.leader_id,
             leader_addr: shard_replica.leader_addr,
@@ -706,8 +684,8 @@ pub struct Address {
     pub ip: String,
     pub port: i64,
 }
-impl From<milvus::proto::common::Address> for Address {
-    fn from(address: milvus::proto::common::Address) -> Self {
+impl From<proto::common::Address> for Address {
+    fn from(address: proto::common::Address) -> Self {
         Address {
             ip: address.ip,
             port: address.port,
@@ -736,8 +714,8 @@ pub struct ComponentInfo {
     pub state_code: StateCode,
     pub extra_info: std::collections::HashMap<String, String>,
 }
-impl From<milvus::proto::milvus::ComponentInfo> for ComponentInfo {
-    fn from(component_info: milvus::proto::milvus::ComponentInfo) -> Self {
+impl From<proto::milvus::ComponentInfo> for ComponentInfo {
+    fn from(component_info: proto::milvus::ComponentInfo) -> Self {
         ComponentInfo {
             node_id: component_info.node_id,
             role: component_info.role,
@@ -799,8 +777,8 @@ pub struct ImportStateResult {
     pub segment_ids: Vec<i64>,
     pub create_ts: i64,
 }
-impl From<milvus::proto::milvus::GetImportStateResponse> for ImportStateResult {
-    fn from(response: milvus::proto::milvus::GetImportStateResponse) -> Self {
+impl From<proto::milvus::GetImportStateResponse> for ImportStateResult {
+    fn from(response: proto::milvus::GetImportStateResponse) -> Self {
         ImportStateResult {
             state: ImportState::from_i32(response.state).unwrap(),
             row_count: response.row_count,
@@ -852,8 +830,8 @@ pub struct User {
     pub user: Option<UserEntity>,
     pub roles: Vec<RoleEntity>,
 }
-impl From<milvus::proto::milvus::UserResult> for User {
-    fn from(user: milvus::proto::milvus::UserResult) -> Self {
+impl From<proto::milvus::UserResult> for User {
+    fn from(user: proto::milvus::UserResult) -> Self {
         User {
             user: user.user.map(|user| user.into()),
             roles: user.roles.into_iter().map(|role| role.into()).collect(),
@@ -875,8 +853,8 @@ pub struct GrantEntity {
     pub object_name: String,
     pub grantor: Option<GrantorEntity>,
 }
-impl From<milvus::proto::milvus::GrantEntity> for GrantEntity {
-    fn from(grant_entity: milvus::proto::milvus::GrantEntity) -> Self {
+impl From<proto::milvus::GrantEntity> for GrantEntity {
+    fn from(grant_entity: proto::milvus::GrantEntity) -> Self {
         GrantEntity {
             role: grant_entity.role.map(|role| role.into()),
             object: grant_entity.object.map(|object| object.into()),
@@ -885,9 +863,9 @@ impl From<milvus::proto::milvus::GrantEntity> for GrantEntity {
         }
     }
 }
-impl From<GrantEntity> for milvus::proto::milvus::GrantEntity {
+impl From<GrantEntity> for proto::milvus::GrantEntity {
     fn from(grant_entity: GrantEntity) -> Self {
-        milvus::proto::milvus::GrantEntity {
+        proto::milvus::GrantEntity {
             role: grant_entity.role.map(|role| role.into()),
             object: grant_entity.object.map(|object| object.into()),
             object_name: grant_entity.object_name,
@@ -901,17 +879,17 @@ pub struct GrantorEntity {
     pub user: Option<UserEntity>,
     pub privilege: Option<PrivilegeEntity>,
 }
-impl From<milvus::proto::milvus::GrantorEntity> for GrantorEntity {
-    fn from(grantor_entity: milvus::proto::milvus::GrantorEntity) -> Self {
+impl From<proto::milvus::GrantorEntity> for GrantorEntity {
+    fn from(grantor_entity: proto::milvus::GrantorEntity) -> Self {
         GrantorEntity {
             user: grantor_entity.user.map(|user| user.into()),
             privilege: grantor_entity.privilege.map(|privilege| privilege.into()),
         }
     }
 }
-impl From<GrantorEntity> for milvus::proto::milvus::GrantorEntity {
+impl From<GrantorEntity> for proto::milvus::GrantorEntity {
     fn from(grantor_entity: GrantorEntity) -> Self {
-        milvus::proto::milvus::GrantorEntity {
+        proto::milvus::GrantorEntity {
             user: grantor_entity.user.map(|user| user.into()),
             privilege: grantor_entity.privilege.map(|privilege| privilege.into()),
         }
@@ -922,16 +900,16 @@ impl From<GrantorEntity> for milvus::proto::milvus::GrantorEntity {
 pub struct UserEntity {
     pub name: String,
 }
-impl From<milvus::proto::milvus::UserEntity> for UserEntity {
-    fn from(user_entity: milvus::proto::milvus::UserEntity) -> Self {
+impl From<proto::milvus::UserEntity> for UserEntity {
+    fn from(user_entity: proto::milvus::UserEntity) -> Self {
         UserEntity {
             name: user_entity.name,
         }
     }
 }
-impl From<UserEntity> for milvus::proto::milvus::UserEntity {
+impl From<UserEntity> for proto::milvus::UserEntity {
     fn from(user_entity: UserEntity) -> Self {
-        milvus::proto::milvus::UserEntity {
+        proto::milvus::UserEntity {
             name: user_entity.name,
         }
     }
@@ -941,16 +919,16 @@ impl From<UserEntity> for milvus::proto::milvus::UserEntity {
 pub struct PrivilegeEntity {
     pub name: String,
 }
-impl From<milvus::proto::milvus::PrivilegeEntity> for PrivilegeEntity {
-    fn from(privilege_entity: milvus::proto::milvus::PrivilegeEntity) -> Self {
+impl From<proto::milvus::PrivilegeEntity> for PrivilegeEntity {
+    fn from(privilege_entity: proto::milvus::PrivilegeEntity) -> Self {
         PrivilegeEntity {
             name: privilege_entity.name,
         }
     }
 }
-impl From<PrivilegeEntity> for milvus::proto::milvus::PrivilegeEntity {
+impl From<PrivilegeEntity> for proto::milvus::PrivilegeEntity {
     fn from(privilege_entity: PrivilegeEntity) -> Self {
-        milvus::proto::milvus::PrivilegeEntity {
+        proto::milvus::PrivilegeEntity {
             name: privilege_entity.name,
         }
     }
@@ -960,16 +938,16 @@ impl From<PrivilegeEntity> for milvus::proto::milvus::PrivilegeEntity {
 pub struct ObjectEntity {
     pub name: String,
 }
-impl From<milvus::proto::milvus::ObjectEntity> for ObjectEntity {
-    fn from(object_entity: milvus::proto::milvus::ObjectEntity) -> Self {
+impl From<proto::milvus::ObjectEntity> for ObjectEntity {
+    fn from(object_entity: proto::milvus::ObjectEntity) -> Self {
         ObjectEntity {
             name: object_entity.name,
         }
     }
 }
-impl From<ObjectEntity> for milvus::proto::milvus::ObjectEntity {
+impl From<ObjectEntity> for proto::milvus::ObjectEntity {
     fn from(object_entity: ObjectEntity) -> Self {
-        milvus::proto::milvus::ObjectEntity {
+        proto::milvus::ObjectEntity {
             name: object_entity.name,
         }
     }
@@ -979,16 +957,16 @@ impl From<ObjectEntity> for milvus::proto::milvus::ObjectEntity {
 pub struct RoleEntity {
     pub name: String,
 }
-impl From<milvus::proto::milvus::RoleEntity> for RoleEntity {
-    fn from(role_entity: milvus::proto::milvus::RoleEntity) -> Self {
+impl From<proto::milvus::RoleEntity> for RoleEntity {
+    fn from(role_entity: proto::milvus::RoleEntity) -> Self {
         RoleEntity {
             name: role_entity.name,
         }
     }
 }
-impl From<RoleEntity> for milvus::proto::milvus::RoleEntity {
+impl From<RoleEntity> for proto::milvus::RoleEntity {
     fn from(role_entity: RoleEntity) -> Self {
-        milvus::proto::milvus::RoleEntity {
+        proto::milvus::RoleEntity {
             name: role_entity.name,
         }
     }

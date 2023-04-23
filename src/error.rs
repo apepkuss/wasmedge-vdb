@@ -1,6 +1,4 @@
-// use crate::collection::Error as CollectionError;
-// use crate::schema::SchemaError;
-use milvus::proto::{
+use crate::proto::{
     common::{ErrorCode, Status},
     schema::DataType,
 };

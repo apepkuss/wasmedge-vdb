@@ -1,4 +1,4 @@
-use milvus::proto::common::{ErrorCode, MsgBase, MsgType, Status};
+use crate::proto::common::{ErrorCode, MsgBase, MsgType, Status};
 
 use crate::error::{Error, Result};
 
