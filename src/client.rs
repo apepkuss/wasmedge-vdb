@@ -67,9 +67,21 @@ impl Client {
         Ok(Self { client })
     }
 
+    /// Create a collection with the specified schema.
+    ///
+    /// # Arguments
+    ///
+    /// * `collection_name` - The unique name of the collection to create.
+    ///
+    /// * `schema` - The schema of the collection to create.
+    ///
+    /// * `shards_num` - The shard number of the collection to create. It corresponds to the number of data nodes used to insert data.
+    ///
+    /// * `level` - The consistency level of the collection to create.
+    ///
+    /// * `properties` - The properties for modifying the collection.
     pub async fn create_collection(
         &self,
-        db_name: &str,
         collection_name: &str,
         schema: CollectionSchema,
         shards_num: Option<i32>,
@@ -89,7 +101,6 @@ impl Client {
 
         let request = milvus::proto::milvus::CreateCollectionRequest {
             base: Some(new_msg(MsgType::CreateCollection)),
-            db_name: db_name.to_string(),
             collection_name: collection_name.to_string(),
             schema,
             shards_num,
@@ -101,6 +112,7 @@ impl Client {
                     value: v.to_string(),
                 })
                 .collect(),
+            ..Default::default()
         };
 
         let status = self
@@ -113,11 +125,11 @@ impl Client {
         status_to_result(&Some(status))
     }
 
-    pub async fn drop_collection(&self, db_name: &str, collection_name: &str) -> Result<()> {
+    pub async fn drop_collection(&self, collection_name: &str) -> Result<()> {
         let request = milvus::proto::milvus::DropCollectionRequest {
             base: Some(new_msg(MsgType::DropCollection)),
-            db_name: db_name.to_string(),
             collection_name: collection_name.to_string(),
+            ..Default::default()
         };
 
         let status = self
@@ -134,23 +146,20 @@ impl Client {
     ///
     /// # Arguments
     ///
-    /// * `db_name` - database name. Not useful for now.
-    ///
     /// * `collection_name` - The name of the collection to check
     ///
     /// * `time_stamp` - The timestamp of the collection to check. If `time_stamp` is not zero, will return true when time_stamp >= created collection timestamp, otherwise will return false.
     ///
     pub async fn has_collection(
         &self,
-        db_name: &str,
         collection_name: &str,
-        time_stamp: u64,
+        time_stamp: Option<u64>,
     ) -> Result<bool> {
         let request = milvus::proto::milvus::HasCollectionRequest {
             base: Some(new_msg(MsgType::HasCollection)),
-            db_name: db_name.to_string(),
             collection_name: collection_name.to_string(),
-            time_stamp,
+            time_stamp: time_stamp.unwrap_or(0),
+            ..Default::default()
         };
 
         let response = self
@@ -225,17 +234,14 @@ impl Client {
     ///
     pub async fn describe_collection(
         &self,
-        db_name: &str,
         collection_name: &str,
-        collection_id: i64,
-        time_stamp: u64,
+        time_stamp: Option<u64>,
     ) -> Result<CollectionMetadata> {
         let request = milvus::proto::milvus::DescribeCollectionRequest {
             base: Some(new_msg(MsgType::DescribeCollection)),
-            db_name: db_name.to_string(),
             collection_name: collection_name.to_string(),
-            collection_id: collection_id,
-            time_stamp,
+            time_stamp: time_stamp.unwrap_or(0),
+            ..Default::default()
         };
 
         let response = self
@@ -299,17 +305,12 @@ impl Client {
     /// Return basic collection infos.
     pub async fn show_collections(
         &self,
-        db_name: &str,
-        time_stamp: u64,
-        ty: ShowType,
         collection_names: Vec<&str>,
     ) -> Result<Vec<CollectionInfo>> {
         let request = milvus::proto::milvus::ShowCollectionsRequest {
             base: Some(new_msg(MsgType::ShowCollections)),
-            db_name: db_name.to_string(),
-            time_stamp,
-            r#type: ty as i32,
             collection_names: collection_names.iter().map(|x| x.to_string()).collect(),
+            ..Default::default()
         };
 
         let response = self
@@ -328,8 +329,9 @@ impl Client {
                 id: response.collection_ids[i],
                 created_timestamp: response.created_timestamps[i],
                 created_utc_timestamp: response.created_utc_timestamps[i],
-                in_memory_percentage: response.in_memory_percentages[i],
-                query_service_available: response.query_service_available[i],
+                // TODO: add in_memory_percentage and query_service_available
+                // in_memory_percentage: response.in_memory_percentages[i],
+                // query_service_available: response.query_service_available[i],
             });
         }
 
@@ -1705,14 +1707,14 @@ impl Interceptor for AuthInterceptor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    // use crate::common::{CollectionSchema, DataType, FieldSchema};
+    use crate::common::{CollectionSchema, FieldSchema, FieldType};
 
     fn get_vdb_host_address() -> String {
         std::env::var("VDB_HOST").expect("VDB_HOST is not set")
     }
 
     #[tokio::test]
-    async fn test_new_client_new() {
+    async fn test_client_new() {
         let result = Client::new(
             get_vdb_host_address().as_str(),
             19530,
@@ -1724,71 +1726,70 @@ mod tests {
         assert!(result.is_ok());
     }
 
-    // #[tokio::test]
-    // async fn test_client_collection() -> Result<()> {
-    //     let mut client = Client::new(
-    //         get_vdb_host_address().as_str(),
-    //         19530,
-    //         None,
-    //         None,
-    //         Some(std::time::Duration::from_secs(10)),
-    //     )
-    //     .await?;
+    #[tokio::test]
+    async fn test_client_collection() -> Result<()> {
+        let client = Client::new(
+            get_vdb_host_address().as_str(),
+            19530,
+            None,
+            None,
+            Some(std::time::Duration::from_secs(10)),
+        )
+        .await?;
 
-    //     // create a collection `c1`
-    //     let c1_name = "c1";
-    //     let c1_schema = CollectionSchema::new(
-    //         c1_name,
-    //         "This is `c1` collection",
-    //         false,
-    //         vec![FieldSchema::new(
-    //             0,
-    //             "field1",
-    //             false
-    //             "The is the first field"
-    //             DataType::Int64,
-    //             Some("This is the first field of `c1` collection"),
-    //         )],
-    //     );
-    //     let c1_options = CreateCollectionOptions::default();
-    //     let result = client.create_collection(c1_schema, Some(c1_options)).await;
-    //     assert!(result.is_ok());
+        // create a collection `c1`
 
-    //     // // create a collection `c2`
-    //     // let c2_name = "c2";
-    //     // let c2_schema = CollectionSchema::new(
-    //     //     c2_name,
-    //     //     vec![FieldSchema::new(
-    //     //         "field1",
-    //     //         FieldType::VarChar(20, true, false),
-    //     //         Some("This is the first field of `c2` collection"),
-    //     //     )],
-    //     //     Some("This is `c2` collection"),
-    //     // )?;
-    //     // let c2_options = CreateCollectionOptions::default();
-    //     // let result = client.create_collection(c2_schema, Some(c2_options)).await;
-    //     // assert!(result.is_ok());
+        let c1_name = "c1";
+        let c1_schema = CollectionSchema::new(
+            "c1",
+            vec![FieldSchema::new(
+                "field1",
+                FieldType::Int64(true, true),
+                Some("This is the first field of `c1` collection"),
+            )],
+            Some("This is `c1` collection"),
+        );
+        let result = client
+            .create_collection(c1_name, c1_schema, None, None, None)
+            .await;
+        assert!(result.is_ok());
 
-    //     // // has collection
-    //     // assert!(client.has_collection(c1_name));
-    //     // assert!(client.has_collection(c2_name));
+        // create a collection `c2`
+        let c2_name = "c2";
+        let c2_schema = CollectionSchema::new(
+            "c2",
+            vec![FieldSchema::new(
+                "field1",
+                FieldType::VarChar(20, true, false),
+                Some("This is the first field of `c2` collection"),
+            )],
+            Some("This is `c2` collection"),
+        );
+        let result = client
+            .create_collection(c2_name, c2_schema, None, None, None)
+            .await;
+        assert!(result.is_ok());
 
-    //     // // list collections
-    //     // let names = client.collection_names();
-    //     // assert_eq!(names.len(), 2);
-    //     // assert!(names.contains(&c1_name));
-    //     // assert!(names.contains(&c2_name));
+        // has collection
+        assert!(client.has_collection(c1_name, None).await?);
+        assert!(client.has_collection(c2_name, None).await?);
 
-    //     // // get collection
-    //     // let c1 = client.collection(c1_name);
-    //     // assert!(c1.is_some());
+        // list collections
+        let collection_info_vec = client.show_collections(vec![c1_name, c2_name]).await?;
+        assert_eq!(collection_info_vec.len(), 2);
+        assert!([c1_name, c2_name].contains(&collection_info_vec[0].name.as_str()));
+        assert!([c1_name, c2_name].contains(&collection_info_vec[1].name.as_str()));
 
-    //     // // drop the `c1` collection
-    //     // let result = client.remove_collection(c1_name).await;
-    //     // assert!(result.is_ok());
+        // get collection
+        let c1_metadata = client.describe_collection(c1_name, None).await?;
+        assert_eq!(c1_metadata.name, c1_name);
 
-    //     // assert!(!client.has_collection(c1_name));
+        // drop the `c1` collection
+        let result = client.drop_collection(c1_name).await;
+        assert!(result.is_ok());
 
-    //     Ok(())
-    // }
+        assert!(!client.has_collection(c1_name, None).await?);
+
+        Ok(())
+    }
 }
