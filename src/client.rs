@@ -12,14 +12,15 @@ use tonic::Request;
 
 use crate::{
     common::{
-        Address, CollectionInfo, CollectionMetadata, CollectionSchema, CompactionMergeInfo,
-        CompactionPlan, CompactionState, CompactionStateResult, ComponentState, DslType, FieldData,
-        FlushResult, GrantEntity, Health, ImportState, ImportStateResult, IndexInfo, IndexProgress,
-        IndexState, Metrics, MutationResult, OperatePrivilegeType, OperateUserRoleType,
-        PartitionInfo, PersistentSegmentInfo, QueryResult, QuerySegmentInfo, ReplicaInfo,
-        RoleEntity, RoleResult, SearchResult, SegmentState, ShowType, User, UserEntity,
+        Address, CollectionInfo, CollectionMetadata, CompactionMergeInfo, CompactionPlan,
+        CompactionState, CompactionStateResult, ComponentState, DslType, FieldData, FlushResult,
+        GrantEntity, Health, ImportState, ImportStateResult, IndexInfo, IndexProgress, IndexState,
+        Metrics, MutationResult, OperatePrivilegeType, OperateUserRoleType, PartitionInfo,
+        PersistentSegmentInfo, QueryResult, QuerySegmentInfo, ReplicaInfo, RoleEntity, RoleResult,
+        SearchResult, SegmentState, ShowType, User, UserEntity,
     },
     error::{Error, Result},
+    schema::CollectionSchema,
     utils::{new_msg, status_to_result},
 };
 
@@ -1707,7 +1708,7 @@ impl Interceptor for AuthInterceptor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::common::{CollectionSchema, FieldSchema, FieldType};
+    use crate::schema::{CollectionSchema, FieldSchema, FieldType};
 
     fn get_vdb_host_address() -> String {
         std::env::var("VDB_HOST").expect("VDB_HOST is not set")
