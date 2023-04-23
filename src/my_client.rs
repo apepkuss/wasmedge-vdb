@@ -1702,88 +1702,93 @@ impl Interceptor for AuthInterceptor {
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
+#[cfg(test)]
+mod tests {
+    use super::*;
+    // use crate::common::{CollectionSchema, DataType, FieldSchema};
 
-//     fn get_vdb_host_address() -> String {
-//         std::env::var("VDB_HOST").expect("VDB_HOST is not set")
-//     }
+    fn get_vdb_host_address() -> String {
+        std::env::var("VDB_HOST").expect("VDB_HOST is not set")
+    }
 
-//     #[tokio::test]
-//     async fn test_new_client_new() {
-//         let result = Client::new(
-//             get_vdb_host_address().as_str(),
-//             19530,
-//             None,
-//             None,
-//             Some(std::time::Duration::from_secs(10)),
-//         )
-//         .await;
-//         assert!(result.is_ok());
-//     }
+    #[tokio::test]
+    async fn test_new_client_new() {
+        let result = Client::new(
+            get_vdb_host_address().as_str(),
+            19530,
+            None,
+            None,
+            Some(std::time::Duration::from_secs(10)),
+        )
+        .await;
+        assert!(result.is_ok());
+    }
 
-//     // #[tokio::test]
-//     // async fn test_client_collection() -> VDBResult<()> {
-//     //     let mut client = Client::new(
-//     //         get_vdb_host_address().as_str(),
-//     //         19530,
-//     //         None,
-//     //         None,
-//     //         Some(std::time::Duration::from_secs(10)),
-//     //     )
-//     //     .await?;
+    // #[tokio::test]
+    // async fn test_client_collection() -> Result<()> {
+    //     let mut client = Client::new(
+    //         get_vdb_host_address().as_str(),
+    //         19530,
+    //         None,
+    //         None,
+    //         Some(std::time::Duration::from_secs(10)),
+    //     )
+    //     .await?;
 
-//     //     // create a collection `c1`
-//     //     let c1_name = "c1";
-//     //     let c1_schema = CollectionSchema::new(
-//     //         c1_name,
-//     //         vec![FieldSchema::new(
-//     //             "field1",
-//     //             FieldType::Int64(true, true),
-//     //             Some("This is the first field of `c1` collection"),
-//     //         )],
-//     //         Some("This is `c1` collection"),
-//     //     )?;
-//     //     let c1_options = CreateCollectionOptions::default();
-//     //     let result = client.create_collection(c1_schema, Some(c1_options)).await;
-//     //     assert!(result.is_ok());
+    //     // create a collection `c1`
+    //     let c1_name = "c1";
+    //     let c1_schema = CollectionSchema::new(
+    //         c1_name,
+    //         "This is `c1` collection",
+    //         false,
+    //         vec![FieldSchema::new(
+    //             0,
+    //             "field1",
+    //             false
+    //             "The is the first field"
+    //             DataType::Int64,
+    //             Some("This is the first field of `c1` collection"),
+    //         )],
+    //     );
+    //     let c1_options = CreateCollectionOptions::default();
+    //     let result = client.create_collection(c1_schema, Some(c1_options)).await;
+    //     assert!(result.is_ok());
 
-//     //     // create a collection `c2`
-//     //     let c2_name = "c2";
-//     //     let c2_schema = CollectionSchema::new(
-//     //         c2_name,
-//     //         vec![FieldSchema::new(
-//     //             "field1",
-//     //             FieldType::VarChar(20, true, false),
-//     //             Some("This is the first field of `c2` collection"),
-//     //         )],
-//     //         Some("This is `c2` collection"),
-//     //     )?;
-//     //     let c2_options = CreateCollectionOptions::default();
-//     //     let result = client.create_collection(c2_schema, Some(c2_options)).await;
-//     //     assert!(result.is_ok());
+    //     // // create a collection `c2`
+    //     // let c2_name = "c2";
+    //     // let c2_schema = CollectionSchema::new(
+    //     //     c2_name,
+    //     //     vec![FieldSchema::new(
+    //     //         "field1",
+    //     //         FieldType::VarChar(20, true, false),
+    //     //         Some("This is the first field of `c2` collection"),
+    //     //     )],
+    //     //     Some("This is `c2` collection"),
+    //     // )?;
+    //     // let c2_options = CreateCollectionOptions::default();
+    //     // let result = client.create_collection(c2_schema, Some(c2_options)).await;
+    //     // assert!(result.is_ok());
 
-//     //     // has collection
-//     //     assert!(client.has_collection(c1_name));
-//     //     assert!(client.has_collection(c2_name));
+    //     // // has collection
+    //     // assert!(client.has_collection(c1_name));
+    //     // assert!(client.has_collection(c2_name));
 
-//     //     // list collections
-//     //     let names = client.collection_names();
-//     //     assert_eq!(names.len(), 2);
-//     //     assert!(names.contains(&c1_name));
-//     //     assert!(names.contains(&c2_name));
+    //     // // list collections
+    //     // let names = client.collection_names();
+    //     // assert_eq!(names.len(), 2);
+    //     // assert!(names.contains(&c1_name));
+    //     // assert!(names.contains(&c2_name));
 
-//     //     // get collection
-//     //     let c1 = client.collection(c1_name);
-//     //     assert!(c1.is_some());
+    //     // // get collection
+    //     // let c1 = client.collection(c1_name);
+    //     // assert!(c1.is_some());
 
-//     //     // drop the `c1` collection
-//     //     let result = client.remove_collection(c1_name).await;
-//     //     assert!(result.is_ok());
+    //     // // drop the `c1` collection
+    //     // let result = client.remove_collection(c1_name).await;
+    //     // assert!(result.is_ok());
 
-//     //     assert!(!client.has_collection(c1_name));
+    //     // assert!(!client.has_collection(c1_name));
 
-//     //     Ok(())
-//     // }
-// }
+    //     Ok(())
+    // }
+}

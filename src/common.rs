@@ -22,19 +22,19 @@ impl From<milvus::proto::common::ConsistencyLevel> for ConsistencyLevel {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct CollectionSchema {
-    pub name: String,
-    pub description: String,
-    pub auto_id: bool,
-    pub fields: Vec<FieldSchema>,
+    pub(crate) name: String,
+    pub(crate) description: String,
+    pub(crate) auto_id: bool,
+    pub(crate) fields: Vec<FieldSchema>,
 }
 impl From<CollectionSchema> for milvus::proto::schema::CollectionSchema {
     fn from(schema: CollectionSchema) -> Self {
         Self {
             name: schema.name.to_string(),
             description: schema.description,
-            auto_id: false,
+            auto_id: schema.auto_id,
             fields: schema.fields.into_iter().map(Into::into).collect(),
         }
     }
@@ -46,6 +46,16 @@ impl From<milvus::proto::schema::CollectionSchema> for CollectionSchema {
             description: schema.description,
             auto_id: schema.auto_id,
             fields: schema.fields.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+impl CollectionSchema {
+    pub fn new(name: &str, description: &str, auto_id: bool, fields: Vec<FieldSchema>) -> Self {
+        Self {
+            name: name.to_string(),
+            description: description.to_string(),
+            auto_id,
+            fields,
         }
     }
 }
@@ -106,6 +116,31 @@ impl From<milvus::proto::schema::FieldSchema> for FieldSchema {
                 .collect(),
             auto_id: field.auto_id,
             state: FromPrimitive::from_i32(field.state).unwrap(),
+        }
+    }
+}
+impl FieldSchema {
+    pub fn new(
+        field_id: i64,
+        name: &str,
+        is_primary_key: bool,
+        description: &str,
+        data_type: DataType,
+        type_params: std::collections::HashMap<String, String>,
+        index_params: std::collections::HashMap<String, String>,
+        auto_id: bool,
+        state: FieldState,
+    ) -> Self {
+        Self {
+            field_id,
+            name: name.to_string(),
+            is_primary_key,
+            description: description.to_string(),
+            data_type,
+            type_params,
+            index_params,
+            auto_id,
+            state,
         }
     }
 }
