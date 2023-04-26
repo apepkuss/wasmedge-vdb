@@ -1,6 +1,6 @@
 [package]
 edition = "2021"
-name = "wasmedge-vdb"
+name = "wasmedge-vdb-sdk"
 version = "0.1.0"
 
 [dependencies]
