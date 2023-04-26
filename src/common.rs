@@ -23,184 +23,6 @@ impl From<proto::common::ConsistencyLevel> for ConsistencyLevel {
     }
 }
 
-// #[derive(Debug, Clone, Default)]
-// pub struct CollectionSchema {
-//     pub(crate) name: String,
-//     pub(crate) description: String,
-//     pub(crate) auto_id: bool,
-//     pub(crate) fields: Vec<FieldSchema>,
-// }
-// impl From<CollectionSchema> for proto::schema::CollectionSchema {
-//     fn from(schema: CollectionSchema) -> Self {
-//         Self {
-//             name: schema.name.to_string(),
-//             description: schema.description,
-//             auto_id: schema.auto_id,
-//             fields: schema.fields.into_iter().map(Into::into).collect(),
-//         }
-//     }
-// }
-// impl From<proto::schema::CollectionSchema> for CollectionSchema {
-//     fn from(schema: proto::schema::CollectionSchema) -> Self {
-//         CollectionSchema {
-//             name: schema.name,
-//             description: schema.description,
-//             auto_id: schema.auto_id,
-//             fields: schema.fields.into_iter().map(Into::into).collect(),
-//         }
-//     }
-// }
-// impl CollectionSchema {
-//     pub fn new(name: &str, fields: Vec<FieldSchema>, description: Option<&str>) -> Self {
-//         Self {
-//             name: name.to_string(),
-//             description: description.unwrap_or_default().to_string(),
-//             fields,
-//             ..Default::default()
-//         }
-//     }
-
-//     pub fn name(&self) -> &str {
-//         &self.name
-//     }
-
-//     pub fn fields(&self) -> &[FieldSchema] {
-//         &self.fields
-//     }
-
-//     pub fn description(&self) -> &str {
-//         &self.description
-//     }
-// }
-
-// #[derive(Debug, Clone, Default)]
-// pub struct FieldSchema {
-//     pub(crate) field_id: i64,
-//     pub(crate) name: String,
-//     pub(crate) is_primary_key: bool,
-//     pub(crate) description: String,
-//     pub(crate) data_type: DataType,
-//     pub(crate) type_params: std::collections::HashMap<String, String>,
-//     pub(crate) index_params: std::collections::HashMap<String, String>,
-//     pub(crate) auto_id: bool,
-//     /// To keep compatible with older version, the default state is `Created`.
-//     pub(crate) state: FieldState,
-// }
-// impl From<FieldSchema> for proto::schema::FieldSchema {
-//     fn from(field: FieldSchema) -> Self {
-//         Self {
-//             name: field.name,
-//             is_primary_key: field.is_primary_key,
-//             description: field.description,
-//             data_type: field.data_type as i32,
-//             type_params: field
-//                 .type_params
-//                 .into_iter()
-//                 .map(|(k, v)| proto::common::KeyValuePair { key: k, value: v })
-//                 .collect(),
-//             index_params: field
-//                 .index_params
-//                 .into_iter()
-//                 .map(|(k, v)| proto::common::KeyValuePair { key: k, value: v })
-//                 .collect(),
-//             auto_id: field.auto_id,
-//             state: field.state as i32,
-//             ..Default::default()
-//         }
-//     }
-// }
-// impl From<proto::schema::FieldSchema> for FieldSchema {
-//     fn from(field: proto::schema::FieldSchema) -> Self {
-//         Self {
-//             field_id: field.field_id,
-//             name: field.name,
-//             is_primary_key: field.is_primary_key,
-//             description: field.description,
-//             data_type: FromPrimitive::from_i32(field.data_type).unwrap(),
-//             type_params: field
-//                 .type_params
-//                 .into_iter()
-//                 .map(|kv| (kv.key, kv.value))
-//                 .collect(),
-//             index_params: field
-//                 .index_params
-//                 .into_iter()
-//                 .map(|kv| (kv.key, kv.value))
-//                 .collect(),
-//             auto_id: field.auto_id,
-//             state: FromPrimitive::from_i32(field.state).unwrap(),
-//         }
-//     }
-// }
-// impl FieldSchema {
-//     pub fn new(name: &str, ty: FieldType, description: Option<&str>) -> Self {
-//         let mut schema = FieldSchema::default();
-
-//         schema.name = name.to_string();
-//         schema.description = description.unwrap_or_default().to_string();
-//         schema.data_type = match ty {
-//             FieldType::None => DataType::None,
-//             FieldType::Bool => DataType::Bool,
-//             FieldType::Int8 => DataType::Int8,
-//             FieldType::Int16 => DataType::Int16,
-//             FieldType::Int32 => DataType::Int32,
-//             FieldType::Int64(pk, auto_id) => {
-//                 schema.is_primary_key = pk;
-//                 schema.auto_id = auto_id;
-//                 DataType::Int64
-//             }
-//             FieldType::Float => DataType::Float,
-//             FieldType::Double => DataType::Double,
-//             FieldType::String => DataType::String,
-//             FieldType::VarChar(max_length, pk, auto_id) => {
-//                 schema
-//                     .type_params
-//                     .insert("max_length".to_string(), max_length.to_string());
-//                 schema.is_primary_key = pk;
-//                 schema.auto_id = auto_id;
-//                 DataType::VarChar
-//             }
-//             FieldType::BinaryVector(dim) => {
-//                 schema
-//                     .type_params
-//                     .insert("dim".to_string(), dim.to_string());
-//                 DataType::BinaryVector
-//             }
-//             FieldType::FloatVector(dim) => {
-//                 schema
-//                     .type_params
-//                     .insert("dim".to_string(), dim.to_string());
-//                 DataType::FloatVector
-//             }
-//         };
-
-//         schema
-//     }
-// }
-
-// #[derive(Debug, Clone)]
-// pub enum FieldType {
-//     None,
-//     Bool,
-//     Int8,
-//     Int16,
-//     Int32,
-//     /// `AutoId` is only valid when `PrimaryKey` is true.
-//     Int64(PrimaryKey, AutoId),
-//     Float,
-//     Double,
-//     String,
-//     /// `AutoId` is only valid when `PrimaryKey` is true.
-//     VarChar(MaxLength, PrimaryKey, AutoId),
-//     BinaryVector(Dimension),
-//     FloatVector(Dimension),
-// }
-
-// pub type AutoId = bool;
-// pub type PrimaryKey = bool;
-// pub type MaxLength = i32;
-// pub type Dimension = i64;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, FromPrimitive, ToPrimitive)]
 #[repr(i32)]
 pub enum DataType {
@@ -313,7 +135,7 @@ pub struct IndexProgress {
 
 #[derive(Debug, Clone)]
 pub struct FieldData {
-    pub data_type: i32,
+    pub data_type: DataType,
     pub field_name: String,
     pub field_id: i64,
     pub field: Option<Field>,
@@ -321,7 +143,7 @@ pub struct FieldData {
 impl From<FieldData> for proto::schema::FieldData {
     fn from(field_data: FieldData) -> Self {
         Self {
-            r#type: field_data.data_type,
+            r#type: field_data.data_type as i32,
             field_name: field_data.field_name,
             field_id: field_data.field_id,
             field: field_data.field.map(|f| f.into()),
@@ -331,7 +153,7 @@ impl From<FieldData> for proto::schema::FieldData {
 impl From<proto::schema::FieldData> for FieldData {
     fn from(field_data: proto::schema::FieldData) -> Self {
         Self {
-            data_type: field_data.r#type,
+            data_type: DataType::from_i32(field_data.r#type).unwrap(),
             field_name: field_data.field_name,
             field_id: field_data.field_id,
             field: field_data.field.map(|f| f.into()),
