@@ -852,6 +852,7 @@ impl Client {
 
         let response = self.client.clone().insert(request).await?.into_inner();
 
+        // TODO: check status
         // status_to_result(&response.status)?;
 
         let res = MutationResult {
