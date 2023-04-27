@@ -837,16 +837,6 @@ impl Client {
             false => fields_data.first().unwrap().num_rows(),
         };
 
-        // let fields = fields_data
-        //     .into_iter()
-        //     .map(|field_data| {
-        //         dbg!(field_data.num_rows());
-        //         dbg!(field_data.data_type);
-        //         dbg!(field_data.data_type as i32);
-        //         field_data.into()
-        //     })
-        //     .collect();
-
         let request = proto::milvus::InsertRequest {
             base: Some(new_msg(MsgType::Insert)),
             collection_name: collection_name.to_string(),
