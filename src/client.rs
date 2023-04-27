@@ -828,29 +828,41 @@ impl Client {
 
     pub async fn insert(
         &self,
-        db_name: &str,
         collection_name: &str,
-        partition_name: &str,
+        partition_name: Option<&str>,
         fields_data: Vec<FieldData>,
-        hash_keys: Vec<u32>,
-        num_rows: u32,
     ) -> Result<MutationResult> {
+        let num_rows: u32 = match fields_data.is_empty() {
+            true => 0,
+            false => fields_data.first().unwrap().num_rows(),
+        };
+
+        // let fields = fields_data
+        //     .into_iter()
+        //     .map(|field_data| {
+        //         dbg!(field_data.num_rows());
+        //         dbg!(field_data.data_type);
+        //         dbg!(field_data.data_type as i32);
+        //         field_data.into()
+        //     })
+        //     .collect();
+
         let request = proto::milvus::InsertRequest {
             base: Some(new_msg(MsgType::Insert)),
-            db_name: db_name.to_string(),
             collection_name: collection_name.to_string(),
-            partition_name: partition_name.to_string(),
+            partition_name: partition_name.unwrap_or("_default").to_string(),
             fields_data: fields_data
                 .into_iter()
                 .map(|field_data| field_data.into())
                 .collect(),
-            hash_keys,
+            // fields_data: fields,
             num_rows,
+            ..Default::default()
         };
 
         let response = self.client.clone().insert(request).await?.into_inner();
 
-        status_to_result(&response.status)?;
+        // status_to_result(&response.status)?;
 
         let res = MutationResult {
             id: response.i_ds.map(|ids| ids.into()),

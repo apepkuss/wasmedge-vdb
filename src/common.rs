@@ -135,10 +135,28 @@ pub struct IndexProgress {
 
 #[derive(Debug, Clone)]
 pub struct FieldData {
-    pub data_type: DataType,
-    pub field_name: String,
-    pub field_id: i64,
-    pub field: Option<Field>,
+    pub(crate) data_type: DataType,
+    pub(crate) field_name: String,
+    pub(crate) field_id: i64,
+    pub(crate) field: Option<Field>,
+}
+impl FieldData {
+    pub fn new(name: &str, dtype: DataType, field: Option<Field>) -> Self {
+        Self {
+            data_type: dtype,
+            field_name: name.to_string(),
+            field_id: 0,
+            field,
+        }
+    }
+
+    pub fn num_rows(&self) -> u32 {
+        self.field.as_ref().map(|f| f.num_rows()).unwrap_or(0)
+    }
+
+    pub fn dtype(&self) -> DataType {
+        self.data_type
+    }
 }
 impl From<FieldData> for proto::schema::FieldData {
     fn from(field_data: FieldData) -> Self {
@@ -165,6 +183,21 @@ impl From<proto::schema::FieldData> for FieldData {
 pub enum Field {
     Scalars(ScalarField),
     Vectors(VectorField),
+}
+impl Field {
+    pub fn num_rows(&self) -> u32 {
+        match self {
+            Field::Scalars(scalar_field) => scalar_field.num_rows(),
+            Field::Vectors(vector_field) => vector_field.num_rows(),
+        }
+    }
+
+    pub fn dtype(&self) -> DataType {
+        match self {
+            Field::Scalars(scalar_field) => scalar_field.dtype(),
+            Field::Vectors(vector_field) => vector_field.dtype(),
+        }
+    }
 }
 impl From<Field> for proto::schema::field_data::Field {
     fn from(field: Field) -> Self {
@@ -196,9 +229,46 @@ impl From<proto::schema::field_data::Field> for Field {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ScalarField {
     pub data: Option<ScalarFieldData>,
+}
+impl ScalarField {
+    pub fn new<T: Into<ScalarFieldData>>(data: T) -> Self {
+        Self {
+            data: Some(data.into()),
+        }
+    }
+
+    pub fn num_rows(&self) -> u32 {
+        match &self.data {
+            Some(data) => match data {
+                ScalarFieldData::BoolData(data) => data.len() as u32,
+                ScalarFieldData::IntData(data) => data.len() as u32,
+                ScalarFieldData::LongData(data) => data.len() as u32,
+                ScalarFieldData::FloatData(data) => data.len() as u32,
+                ScalarFieldData::DoubleData(data) => data.len() as u32,
+                ScalarFieldData::StringData(data) => data.len() as u32,
+                ScalarFieldData::BytesData(data) => data.len() as u32,
+            },
+            None => 0,
+        }
+    }
+
+    pub fn dtype(&self) -> DataType {
+        match &self.data {
+            Some(data) => match data {
+                ScalarFieldData::BoolData(_) => DataType::Bool,
+                ScalarFieldData::IntData(_) => DataType::Int32,
+                ScalarFieldData::LongData(_) => DataType::Int64,
+                ScalarFieldData::FloatData(_) => DataType::Float,
+                ScalarFieldData::DoubleData(_) => DataType::Double,
+                ScalarFieldData::StringData(_) => DataType::String,
+                ScalarFieldData::BytesData(_) => DataType::BinaryVector,
+            },
+            None => DataType::None,
+        }
+    }
 }
 impl From<ScalarField> for proto::schema::ScalarField {
     fn from(field: ScalarField) -> Self {
@@ -214,6 +284,63 @@ impl From<proto::schema::ScalarField> for ScalarField {
         }
     }
 }
+impl From<Vec<bool>> for ScalarField {
+    fn from(data: Vec<bool>) -> Self {
+        ScalarField {
+            data: Some(data.into()),
+        }
+    }
+}
+impl From<Vec<i32>> for ScalarField {
+    fn from(data: Vec<i32>) -> Self {
+        ScalarField {
+            data: Some(data.into()),
+        }
+    }
+}
+impl From<Vec<i64>> for ScalarField {
+    fn from(data: Vec<i64>) -> Self {
+        ScalarField {
+            data: Some(data.into()),
+        }
+    }
+}
+impl From<Vec<f32>> for ScalarField {
+    fn from(data: Vec<f32>) -> Self {
+        ScalarField {
+            data: Some(data.into()),
+        }
+    }
+}
+impl From<Vec<f64>> for ScalarField {
+    fn from(data: Vec<f64>) -> Self {
+        ScalarField {
+            data: Some(data.into()),
+        }
+    }
+}
+impl From<Vec<String>> for ScalarField {
+    fn from(data: Vec<String>) -> Self {
+        ScalarField {
+            data: Some(data.into()),
+        }
+    }
+}
+impl From<Vec<&str>> for ScalarField {
+    fn from(data: Vec<&str>) -> Self {
+        ScalarField {
+            data: Some(data.into()),
+        }
+    }
+}
+impl From<Vec<Vec<u8>>> for ScalarField {
+    fn from(data: Vec<Vec<u8>>) -> Self {
+        ScalarField {
+            data: Some(data.into()),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum ScalarFieldData {
     BoolData(Vec<bool>),
@@ -223,6 +350,19 @@ pub enum ScalarFieldData {
     DoubleData(Vec<f64>),
     StringData(Vec<String>),
     BytesData(Vec<Vec<u8>>),
+}
+impl ScalarFieldData {
+    pub fn dtype(&self) -> DataType {
+        match self {
+            ScalarFieldData::BoolData(_) => DataType::Bool,
+            ScalarFieldData::IntData(_) => DataType::Int32,
+            ScalarFieldData::LongData(_) => DataType::Int64,
+            ScalarFieldData::FloatData(_) => DataType::Float,
+            ScalarFieldData::DoubleData(_) => DataType::Double,
+            ScalarFieldData::StringData(_) => DataType::String,
+            ScalarFieldData::BytesData(_) => DataType::BinaryVector,
+        }
+    }
 }
 impl From<ScalarFieldData> for proto::schema::scalar_field::Data {
     fn from(data: ScalarFieldData) -> Self {
@@ -268,11 +408,91 @@ impl From<proto::schema::scalar_field::Data> for ScalarFieldData {
         }
     }
 }
+impl From<Vec<bool>> for ScalarFieldData {
+    fn from(data: Vec<bool>) -> Self {
+        ScalarFieldData::BoolData(data)
+    }
+}
+impl From<Vec<i32>> for ScalarFieldData {
+    fn from(data: Vec<i32>) -> Self {
+        ScalarFieldData::IntData(data)
+    }
+}
+impl From<Vec<i64>> for ScalarFieldData {
+    fn from(data: Vec<i64>) -> Self {
+        ScalarFieldData::LongData(data)
+    }
+}
+impl From<Vec<f32>> for ScalarFieldData {
+    fn from(data: Vec<f32>) -> Self {
+        ScalarFieldData::FloatData(data)
+    }
+}
+impl From<Vec<f64>> for ScalarFieldData {
+    fn from(data: Vec<f64>) -> Self {
+        ScalarFieldData::DoubleData(data)
+    }
+}
+impl From<Vec<String>> for ScalarFieldData {
+    fn from(data: Vec<String>) -> Self {
+        ScalarFieldData::StringData(data)
+    }
+}
+impl From<Vec<&str>> for ScalarFieldData {
+    fn from(data: Vec<&str>) -> Self {
+        let x: Vec<String> = data.iter().map(|x| x.to_string()).collect();
+        ScalarFieldData::StringData(x)
+    }
+}
+impl From<Vec<Vec<u8>>> for ScalarFieldData {
+    fn from(data: Vec<Vec<u8>>) -> Self {
+        ScalarFieldData::BytesData(data)
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct VectorField {
     pub dim: i64,
     pub data: Option<VectorFieldData>,
+}
+impl VectorField {
+    pub fn new<T: Into<VectorFieldData>>(dim: i64, data: T) -> Self {
+        VectorField {
+            dim,
+            data: Some(data.into()),
+        }
+    }
+
+    pub fn num_rows(&self) -> u32 {
+        match &self.data {
+            Some(data) => match data {
+                VectorFieldData::BinaryVec(data) => {
+                    let c = (data.len() / self.dim as usize) as u32;
+                    if data.len() % self.dim as usize == 0 {
+                        c
+                    } else {
+                        c + 1
+                    }
+                }
+                VectorFieldData::FloatVec(data) => {
+                    let c = (data.len() / self.dim as usize) as u32;
+                    if data.len() % self.dim as usize == 0 {
+                        c
+                    } else {
+                        c + 1
+                    }
+                }
+            },
+            None => 0,
+        }
+    }
+
+    pub fn dtype(&self) -> DataType {
+        match &self.data {
+            Some(data) => data.dtype(),
+            None => DataType::None,
+        }
+    }
 }
 impl From<VectorField> for proto::schema::VectorField {
     fn from(field: VectorField) -> Self {
@@ -290,10 +510,19 @@ impl From<proto::schema::VectorField> for VectorField {
         }
     }
 }
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum VectorFieldData {
     BinaryVec(Vec<u8>),
     FloatVec(Vec<f32>),
+}
+impl VectorFieldData {
+    pub fn dtype(&self) -> DataType {
+        match self {
+            VectorFieldData::BinaryVec(_) => DataType::BinaryVector,
+            VectorFieldData::FloatVec(_) => DataType::FloatVector,
+        }
+    }
 }
 impl From<VectorFieldData> for proto::schema::vector_field::Data {
     fn from(data: VectorFieldData) -> Self {
@@ -313,6 +542,16 @@ impl From<proto::schema::vector_field::Data> for VectorFieldData {
             proto::schema::vector_field::Data::BinaryVector(v) => VectorFieldData::BinaryVec(v),
             proto::schema::vector_field::Data::FloatVector(v) => VectorFieldData::FloatVec(v.data),
         }
+    }
+}
+impl From<Vec<u8>> for VectorFieldData {
+    fn from(data: Vec<u8>) -> Self {
+        VectorFieldData::BinaryVec(data)
+    }
+}
+impl From<Vec<f32>> for VectorFieldData {
+    fn from(data: Vec<f32>) -> Self {
+        VectorFieldData::FloatVec(data)
     }
 }
 

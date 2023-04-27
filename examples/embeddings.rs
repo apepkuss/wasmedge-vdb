@@ -1,12 +1,13 @@
 use std::io::{self, Write};
 use wasmedge_vdb_sdk::{
     client::Client,
+    common::{DataType, Field, FieldData, ScalarField, VectorField},
     schema::{CollectionSchema, FieldSchema, FieldType},
 };
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    print!("[step-2] store the document embeddings in Milvus ... ");
+    print!("[step-2] create collection ... ");
     io::stdout().flush().unwrap();
 
     // create a vdb client
@@ -19,14 +20,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     )
     .await?;
 
-    // create a collection schema
+    // define a collection schema before creating collection.
+    // the schema includes three fields: book_id, book_name, book_intro, which are defined with three different field schemas
     let collection_name = "flows_network_book";
     let collection_schema = CollectionSchema::new(
         collection_name,
         vec![
             FieldSchema::new(
                 "book_id",
-                FieldType::Int64(true, false),
+                FieldType::Int64(true, true),
                 Some("This is `book_id` field"),
             ),
             FieldSchema::new(
@@ -38,12 +40,42 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ],
         Some("A guide example for wasmedge-vdb-sdk"),
     );
+
     // Note: the if-statement is just for the example, you can remove it in your code
     if client.has_collection(collection_name, None).await? {
         client.drop_collection(collection_name).await?;
     }
+    // create collection
     client
         .create_collection(collection_name, collection_schema, None, None, None)
+        .await?;
+
+    println!("Done");
+
+    print!("[step-3] Fill in the collection ... ");
+    io::stdout().flush().unwrap();
+
+    let embeddings = vec![0.1_f32, 0.2, 0.3];
+
+    client
+        .insert(
+            collection_name,
+            None,
+            vec![
+                FieldData::new(
+                    "book_name",
+                    DataType::VarChar,
+                    Some(Field::Scalars(ScalarField::new(vec![
+                        "The Hitchhiker's Guide to the Galaxy",
+                    ]))),
+                ),
+                FieldData::new(
+                    "book_intro",
+                    DataType::FloatVector,
+                    Some(Field::Vectors(VectorField::new(1536, embeddings))),
+                ),
+            ],
+        )
         .await?;
 
     println!("Done");
