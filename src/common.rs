@@ -1,5 +1,6 @@
 use crate::{proto, schema::CollectionSchema};
 use num_traits::{FromPrimitive, ToPrimitive};
+use strum::{Display, EnumString};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, FromPrimitive, ToPrimitive)]
 #[repr(i32)]
@@ -1044,4 +1045,57 @@ pub struct Health {
 pub enum DslType {
     Dsl = 0,
     BoolExprV1 = 1,
+}
+
+#[derive(Debug, Clone, Copy, EnumString, Display)]
+pub enum MetricType {
+    #[strum(serialize = "L2")]
+    FloatEmbeddings_Euclidean,
+    #[strum(serialize = "IP")]
+    FloatEmbeddings_InnerProduct,
+    #[strum(serialize = "Jaccard")]
+    BinaryEmbeddings_Jaccard,
+    #[strum(serialize = "Tanimoto")]
+    BinaryEmbeddings_Tanimoto,
+    #[strum(serialize = "Hamming")]
+    BinaryEmbeddings_Hamming,
+    #[strum(serialize = "Superstructure")]
+    BinaryEmbeddings_Superstructure,
+    #[strum(serialize = "Substructure")]
+    BinaryEmbeddings_Substructure,
+}
+
+#[derive(Debug, Clone)]
+pub enum Vector {
+    Binary(Vec<u8>),
+    Float(Vec<f32>),
+}
+impl Vector {
+    pub(crate) fn to_bytes(&self) -> Vec<u8> {
+        match self {
+            Vector::Binary(v) => v.to_owned(),
+            Vector::Float(v) => {
+                let mut bytes = Vec::<u8>::with_capacity(v.len() * 4);
+                for f in v.iter() {
+                    bytes.extend_from_slice(&f.to_le_bytes());
+                }
+                bytes
+            }
+        }
+    }
+}
+impl From<Vec<Vector>> for proto::common::PlaceholderValue {
+    fn from(vectors: Vec<Vector>) -> Self {
+        let ty = match vectors.first() {
+            Some(Vector::Binary(_)) => proto::common::PlaceholderType::BinaryVector,
+            Some(Vector::Float(_)) => proto::common::PlaceholderType::FloatVector,
+            None => proto::common::PlaceholderType::None,
+        } as i32;
+
+        Self {
+            tag: "$0".to_string(),
+            r#type: ty,
+            values: vectors.into_iter().map(|v| v.to_bytes()).collect(),
+        }
+    }
 }

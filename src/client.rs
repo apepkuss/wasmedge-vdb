@@ -12,15 +12,16 @@ use crate::{
         Address, CollectionInfo, CollectionMetadata, CompactionMergeInfo, CompactionPlan,
         CompactionState, CompactionStateResult, ComponentState, ConsistencyLevel, DslType,
         FieldData, FlushResult, GrantEntity, Health, ImportState, ImportStateResult, IndexInfo,
-        IndexProgress, IndexState, Metrics, MutationResult, OperatePrivilegeType,
+        IndexProgress, IndexState, MetricType, Metrics, MutationResult, OperatePrivilegeType,
         OperateUserRoleType, PartitionInfo, PersistentSegmentInfo, QueryResult, QuerySegmentInfo,
         ReplicaInfo, RoleEntity, RoleResult, SearchResult, SegmentState, ShowType, User,
-        UserEntity,
+        UserEntity, Vector,
     },
     error::{Error, Result},
     proto::{self, common::MsgType},
     schema::CollectionSchema,
-    utils::{new_msg, status_to_result},
+    utils::{get_gts, new_msg, status_to_result},
+    WAIT_LOAD_DURATION_MS,
 };
 
 use std::collections::HashMap;
@@ -189,19 +190,26 @@ impl Client {
     ///
     /// * `replica_num` - The number of replica to load. Default is 1.
     ///
-    pub async fn load_collection(
-        &self,
-        db_name: &str,
-        collection_name: &str,
-        replica_num: Option<i32>,
-    ) -> Result<()> {
+    pub async fn load_collection(&self, collection_name: &str, replica_num: i32) -> Result<()> {
+        self.load(collection_name, Some(replica_num)).await?;
+
+        loop {
+            if self.show_progress(collection_name).await? >= 100 {
+                return Ok(());
+            }
+
+            tokio::time::sleep(std::time::Duration::from_millis(WAIT_LOAD_DURATION_MS)).await;
+        }
+    }
+
+    async fn load(&self, collection_name: &str, replica_num: Option<i32>) -> Result<()> {
         let replica_number = replica_num.unwrap_or(1);
 
         let request = proto::milvus::LoadCollectionRequest {
             base: Some(new_msg(MsgType::LoadCollection)),
-            db_name: db_name.to_string(),
             collection_name: collection_name.to_string(),
             replica_number,
+            ..Default::default()
         };
 
         let status = self
@@ -212,6 +220,17 @@ impl Client {
             .into_inner();
 
         status_to_result(&Some(status))
+    }
+
+    async fn show_progress(&self, collection_name: &str) -> Result<i64> {
+        let info_vec = self.show_collections(vec![collection_name]).await?;
+        match info_vec.is_empty() {
+            true => Err(Error::Unexpected("collection not found".to_string())),
+            false => {
+                let info = info_vec.get(0).unwrap();
+                Ok(info.in_memory_percentage)
+            }
+        }
     }
 
     pub async fn release_collection(&self, db_name: &str, collection_name: &str) -> Result<()> {
@@ -334,9 +353,8 @@ impl Client {
                 id: response.collection_ids[i],
                 created_timestamp: response.created_timestamps[i],
                 created_utc_timestamp: response.created_utc_timestamps[i],
-                // TODO: add in_memory_percentage and query_service_available
-                // in_memory_percentage: response.in_memory_percentages[i],
-                // query_service_available: response.query_service_available[i],
+                in_memory_percentage: response.in_memory_percentages[i],
+                query_service_available: response.query_service_available[i],
             });
         }
 
@@ -906,27 +924,52 @@ impl Client {
 
     pub async fn search(
         &self,
-        db_name: &str,
         collection_name: &str,
-        partition_names: Vec<&str>,
-        dsl: &str,
-        placeholder_group: Vec<u8>,
-        dsl_type: DslType,
-        output_fields: Vec<String>,
-        search_params: HashMap<String, String>,
-        travel_timestamp: u64,
-        guarantee_timestamp: u64,
-        nq: i64,
+        partition_names: Option<Vec<&str>>,
+        field_name: &str,
+        data: Vec<Vector>,
+        expr: Option<&str>,
+        top_k: i32,
+        round_decimal: Option<i32>,
+        output_fields: Option<Vec<&str>>,
+        metricy_type: MetricType,
     ) -> Result<SearchResult> {
+        let mut search_params = HashMap::new();
+        search_params.insert("anns_field".to_string(), field_name.to_string());
+        search_params.insert("topk".to_string(), top_k.to_string());
+        search_params.insert(
+            "round_decimal".to_string(),
+            round_decimal.unwrap_or(-1).to_string(),
+        );
+        search_params.insert("metric_type".to_string(), metricy_type.to_string());
+
+        // generate placeholder_group
+        let num_query = data.len() as i64;
+        let placeholder_group = Client::gen_placeholder_group(data)?;
+
+        // TODO: get guarantee_timestamp
+        // let meta_data = self.describe_collection(collection_name, None).await?;
+        // let gts = get_gts(meta_data.consistency_level).await;
+        let gts = get_gts(ConsistencyLevel::Strong).await;
+
         let request = proto::milvus::SearchRequest {
             base: Some(new_msg(MsgType::Search)),
-            db_name: db_name.to_string(),
+            db_name: "".to_string(),
             collection_name: collection_name.to_string(),
-            partition_names: partition_names.into_iter().map(|s| s.to_string()).collect(),
-            dsl: dsl.to_string(),
+            partition_names: partition_names
+                .unwrap_or_default()
+                .into_iter()
+                .map(|s| s.to_string())
+                .collect(),
+            nq: num_query,
             placeholder_group,
-            dsl_type: dsl_type as i32,
-            output_fields,
+            dsl: expr.map(|x| x.to_string()).unwrap_or_default(),
+            dsl_type: DslType::BoolExprV1 as i32,
+            output_fields: output_fields
+                .unwrap_or_default()
+                .into_iter()
+                .map(|s| s.to_string())
+                .collect(),
             search_params: search_params
                 .into_iter()
                 .map(|(k, v)| proto::common::KeyValuePair {
@@ -934,9 +977,8 @@ impl Client {
                     value: v.clone(),
                 })
                 .collect(),
-            travel_timestamp,
-            guarantee_timestamp,
-            nq,
+            travel_timestamp: 0,
+            guarantee_timestamp: gts,
         };
 
         let response = self.client.clone().search(request).await?.into_inner();
@@ -949,6 +991,13 @@ impl Client {
         };
 
         Ok(res)
+    }
+
+    fn gen_placeholder_group(data: Vec<Vector>) -> Result<Vec<u8>> {
+        let placeholder_value: proto::common::PlaceholderValue = data.into();
+        let mut buf = BytesMut::new();
+        placeholder_value.encode(&mut buf)?;
+        Ok(buf.to_vec())
     }
 
     pub async fn flush(&self, db_name: &str, collection_names: Vec<&str>) -> Result<FlushResult> {
