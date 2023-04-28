@@ -84,11 +84,11 @@ pub struct CollectionInfo {
     pub id: i64,
     pub created_timestamp: u64,
     pub created_utc_timestamp: u64,
-    // /// Load percentage on querynode when type is InMemory
-    // /// Deprecated: use GetLoadingProgress rpc instead
-    // pub in_memory_percentage: i64,
-    // /// Indicate whether query service is available.
-    // pub query_service_available: bool,
+    /// Load percentage on querynode when type is InMemory
+    /// Deprecated: use GetLoadingProgress rpc instead
+    pub in_memory_percentage: i64,
+    /// Indicate whether query service is available.
+    pub query_service_available: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, FromPrimitive, ToPrimitive)]
